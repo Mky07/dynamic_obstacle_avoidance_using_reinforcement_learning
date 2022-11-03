@@ -69,7 +69,8 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
         self.is_area_violated = False
         self.is_collision_detected = False
         self.is_goal_reached = False
-        
+        self._nsteps_done = False
+
         # Here we will add any init functions prior to starting the MyRobotEnv
         super(ObstacleAvoidance, self).__init__()
 
@@ -99,13 +100,14 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
         self.is_area_violated = False
         self.is_collision_detected = False
         self.is_goal_reached = False
-
+        self._nsteps_done = False
+        
         # set obtacle pose randomly
-        self.set_model_state("unit_box_red",(0, 0) ,self.obstacle_pose_radius)
-        self.set_model_state("unit_box_red_0",(10, -10), 5)
-        self.set_model_state("unit_box_red_1",(10, 10), 5)
-        self.set_model_state("unit_box_red_2",(-10, 10), 5)
-        self.set_model_state("unit_box_red_3",(-10, -10), 5)
+        # self.set_model_state("unit_box_red",(0, 0) ,self.obstacle_pose_radius)
+        self.set_model_state("unit_box_red_0",(8, -8), 0.5)
+        self.set_model_state("unit_box_red_1",(9, 6), 0.5)
+        self.set_model_state("unit_box_red_2",(-5, 9), 0.5)
+        self.set_model_state("unit_box_red_3",(-7, -7), 0.5)
 
         # This is necessary to give the laser sensors to refresh in the new reseted position.
         rospy.logwarn("Waiting...")
@@ -130,27 +132,26 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
             _angular_speed = 0.0
             self.last_action = "FORWARD"
 
-        # if action == 1: #BACKWARD
-        #     _linear_speed = -1 * self.velocity['linear']['x']
+        # if action == 1: #STOP
+        #     _linear_speed = 0.0
         #     _angular_speed = 0.0
-        #     self.last_action = "BACKWARD"
+        #     self.last_action = "STOP"
 
-        if action == 1: #STOP
+        if action == 1: #TURN LEFT
             _linear_speed = 0.0
-            _angular_speed = 0.0
-            self.last_action = "STOP"
-
-        if action == 2: #TURN LEFT
-            _linear_speed = 0.1
             _angular_speed = self.velocity['angular']['z']
             self.last_action = "TURN_LEFT"
 
-        if action == 3: #TURN RIGHT
-            _linear_speed = 0.1
+        if action == 2: #TURN RIGHT
+            _linear_speed = 0.0
             _angular_speed = -1 * self.velocity['angular']['z']
             self.last_action = "TURN_RIGHT"
 
-        # print("speed: linear:{} angular:{}".format(_linear_speed, _angular_speed))
+        # if action == 4: #BACKWARD
+        #     _linear_speed = -1 * self.velocity['linear']['x']
+        #     _angular_speed = 0.0
+        #     self.last_action = "BACKWARD"
+        
 
         # We tell TurtleBot2 the linear and angular speed to set to execute
         self.move_base(_linear_speed, _angular_speed, epsilon=0.05, update_rate=10)
@@ -180,17 +181,18 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
         # nothing learned
         if self.cumulated_steps == self.nsteps -1:
             self._episode_done = True
+            self._nsteps_done = True
         # print("robot pose: {}".format(self.robot_pose))
 
         # goal has reached                   
         distance_to_goal  = np.sqrt(pow(self.robot_pose.pose.pose.position.x - self.goal_point['x'], 2) + pow(self.robot_pose.pose.pose.position.y - self.goal_point['y'], 2))
-        if distance_to_goal < self.sensitiviy_distances[len(self.sensitiviy_distances) -1]:
+        if distance_to_goal < self.sensitiviy_distances[len(self.sensitiviy_distances) -2]:
             self._episode_done = True
             self.is_goal_reached = True
 
         # collision detected
         for i, item in enumerate(self.observations):
-            if item == len(self.sensitiviy_distances) -1:
+            if item == len(self.sensitiviy_distances) -2:
                 self._episode_done = True
                 self.is_collision_detected = True
                 
@@ -202,20 +204,18 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
 
     def _compute_reward(self, observations, done):
         reward = 0
+        distance_to_goal  = np.sqrt(pow(self.robot_pose.pose.pose.position.x - self.goal_point['x'], 2) + pow(self.robot_pose.pose.pose.position.y - self.goal_point['y'], 2))
+        
+        if self.is_area_violated:
+            reward += self.area_violation_reward *distance_to_goal * 0.05
 
-        if self._episode_done:
-            # if self.is_area_violated:
-            #     reward+= self.area_violation_reward
-            if self.is_collision_detected:
-                reward+= self.collsion_detected_reward
+        if self.is_collision_detected:
+            reward+= self.collsion_detected_reward
 
-            if self.is_goal_reached:
-                reward+= self.goal_reached_reward
+        if self.is_goal_reached:
+            reward+= self.goal_reached_reward
 
-            # distance diff reward
-            distance_to_goal  = np.sqrt(pow(self.robot_pose.pose.pose.position.x - self.goal_point['x'], 2) + pow(self.robot_pose.pose.pose.position.y - self.goal_point['y'], 2))
-            reward -= 10 * distance_to_goal
-
+        # time reward
         reward -= 0.2
          
         rospy.logdebug("reward=" + str(reward))

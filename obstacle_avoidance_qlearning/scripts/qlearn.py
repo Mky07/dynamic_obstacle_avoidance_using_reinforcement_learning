@@ -8,7 +8,7 @@ Inspired by https://gym.openai.com/evaluations/eval_kWknKOkPQ7izrixdhriurA
         @author: Victor Mayoral Vilches <victor@erlerobotics.com>
 '''
 import random
-
+import rospy
 class QLearn:
     def __init__(self, actions, epsilon, alpha, gamma):
         self.q = {}
@@ -36,23 +36,32 @@ class QLearn:
         maxQ = max(q)
 
         if random.random() < self.epsilon:
-            minQ = min(q); mag = max(abs(minQ), abs(maxQ))
-            # add random values to all the actions, recalculate maxQ
-            q = [q[i] + random.random() * mag - .5 * mag for i in range(len(self.actions))] 
-            maxQ = max(q)
-
-        count = q.count(maxQ)
-        # In case there're several state-action max values 
-        # we select a random one among them
-        if count > 1:
-            best = [i for i in range(len(self.actions)) if q[i] == maxQ]
-            i = random.choice(best)
+            action = random.choice(self.actions)
         else:
             i = q.index(maxQ)
+            action = self.actions[i] 
 
-        action = self.actions[i]        
-        if return_q: # if they want it, give it!
-            return action, q
+        # rospy.logerr("choose action q: {}".format(q))
+
+        # if random.random() < self.epsilon:
+        #     minQ = min(q); mag = max(abs(minQ), abs(maxQ))
+        #     # add random values to all the actions, recalculate maxQ
+        #     q = [q[i] + random.random() * mag - .5 * mag for i in range(len(self.actions))] 
+        #     maxQ = max(q)            
+
+        # rospy.logerr("choose action max q: {}".format(maxQ))
+        # count = q.count(maxQ)
+        # # In case there're several state-action max values 
+        # # we select a random one among them
+        # if count > 1:
+        #     best = [i for i in range(len(self.actions)) if q[i] == maxQ]
+        #     i = random.choice(best)
+        # else:
+        #     i = q.index(maxQ)
+
+        # action = self.actions[i]        
+        # if return_q: # if they want it, give it!
+        #     return action, q
         return action
 
     def learn(self, state1, action1, reward, state2):

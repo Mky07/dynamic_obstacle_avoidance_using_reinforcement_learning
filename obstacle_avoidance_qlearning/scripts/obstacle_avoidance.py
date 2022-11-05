@@ -204,10 +204,12 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
 
     def _compute_reward(self, observations, done):
         reward = 0
-        distance_to_goal  = np.sqrt(pow(self.robot_pose.pose.pose.position.x - self.goal_point['x'], 2) + pow(self.robot_pose.pose.pose.position.y - self.goal_point['y'], 2))
         
-        if self.is_area_violated:
-            reward += self.area_violation_reward *distance_to_goal * 0.05
+        distance_to_goal  = np.sqrt(pow(self.robot_pose.pose.pose.position.x - self.goal_point['x'], 2) + pow(self.robot_pose.pose.pose.position.y - self.goal_point['y'], 2))
+        reward -= distance_to_goal * 0.05
+        
+        # if self.is_area_violated or self._nsteps_done:
+        #     reward += self.area_violation_reward * distance_to_goal * 0.05 
 
         if self.is_collision_detected:
             reward+= self.collsion_detected_reward

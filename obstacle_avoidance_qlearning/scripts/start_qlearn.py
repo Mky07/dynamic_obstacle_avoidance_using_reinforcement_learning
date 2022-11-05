@@ -26,7 +26,7 @@ import os
 if __name__ == '__main__':
 
     rospy.init_node('obstacle_avoidance', anonymous=True, log_level=rospy.WARN)
-    filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/models/model4.pkl"
+    filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/models/model9.pkl"
 
     # log_varaiables = defineLogVariables()
     log_values = {
@@ -89,7 +89,10 @@ if __name__ == '__main__':
     # Starts the main training loop: the one about the episodes to do
     for x in range(nepisodes):
         rospy.logdebug("############### WALL START EPISODE=>" + str(log_values['current_episode']))
-        # rospy.logerr("*****************************************\nq values:\n {}\n*****************************************".format(qlearn.q))
+        print_q = {key : round(qlearn.q[key], 2) for key in qlearn.q}
+        rospy.logerr("*****************************************\nq values:\n {}\n*****************************************".format(print_q))
+        print("cumulated_reward: {}".format(log_values['cumulated_reward'][-100:]))
+
         cumulated_reward = 0
         done = False
         if qlearn.epsilon > 0.05:
@@ -155,9 +158,6 @@ if __name__ == '__main__':
         #     mean_val = 0
         cumulated_reward_10_episode.append(cumulated_reward)
 
-        print("cumulated_reward: {}".format(log_values['cumulated_reward']))
-
-        # print("Cumulated_reward_10_episode: {}".format(cumulated_reward_10_episode))
     
     rospy.loginfo(("\n|" + str(nepisodes) + "|" + str(qlearn.alpha) + "|" + str(qlearn.gamma) + "|" + str(
         initial_epsilon) + "*" + str(epsilon_discount) + "|" + str(highest_reward) + "| PICTURE |"))

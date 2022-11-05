@@ -38,7 +38,8 @@ class QLearn:
         if random.random() < self.epsilon:
             action = random.choice(self.actions)
         else:
-            i = q.index(maxQ)
+            indices = [i for i, x in enumerate(q) if x == maxQ]
+            i = random.choice(indices)
             action = self.actions[i] 
 
         # rospy.logerr("choose action q: {}".format(q))
@@ -57,7 +58,7 @@ class QLearn:
         #     best = [i for i in range(len(self.actions)) if q[i] == maxQ]
         #     i = random.choice(best)
         # else:
-        #     i = q.index(maxQ)
+            # i = q.index(maxQ)
 
         # action = self.actions[i]        
         # if return_q: # if they want it, give it!

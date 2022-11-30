@@ -15,42 +15,22 @@ turtlebot2: #namespace
 
     n_actions: 3 # We have 5 actions, Forward, Stop, turn left, turn right, backward
 
-    num_of_sector: 36
-
     speed_step: 1.0 # Time to wait in the reset phases
-    
-    obstacle_pose_radius: 3
     
     velocity:
         linear:
-            x: 2.5
+            x: 1.2
             y: 0.0
             z: 0.0
         angular:
             x: 0.0 
             y: 0.0
-            z: 0.3
-    
-    robot_movement_area:
-        min: {x: -4.0, y: -4.0}
-        max: {x: 4.0, y: 4.0}
+            z: 0.5
 
     goal_point:
         x: 3.0
         y: 0.0
         z: 0.0
-
-    # you should define as many reward as number of sensitivity. These must be a increasing number.
-    sensitiviy_distances:
-        - 10
-        - 6
-        - 4
-        - 2
-        - 1
-        - 0.4
-        - 0.2
-        - 0.01
-        # ...
     
     area_violation_reward: -70
     goal_reached_reward: 300

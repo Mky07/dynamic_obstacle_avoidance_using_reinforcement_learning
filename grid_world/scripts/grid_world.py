@@ -11,65 +11,51 @@ from nav_msgs.msg import Odometry
 
 from gazebo_msgs.srv import *
 from gazebo_msgs.msg import ModelState
+import math
+from tf.transformations import euler_from_quaternion
 
 timestep_limit_per_episode = 100000 # Can be any Value
 
 register(
-        id='ObstacleAvoidance-v0',
-        entry_point='obstacle_avoidance:ObstacleAvoidance',
+        id='GridWorld-v0',
+        entry_point='grid_world:GridWorld',
         max_episode_steps=timestep_limit_per_episode,
     )
 
-class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
+class GridWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
         """
-        This task environment is designed for the Turtlebot2
-        to visit waypoints
+        Explain what you do
         """
-
-        # subscribe robot pose
-        self.robot_pose = Odometry()
-        rospy.Subscriber("/odom", Odometry, self.odom_cb)
 
         # Only variable needed to be set here
         number_actions = rospy.get_param('/turtlebot2/n_actions')
         self.action_space = spaces.Discrete(number_actions)
-
-        # We set the reward range, which is not compulsory but here we do it.
-        self.reward_range = (-np.inf, np.inf)
-
-        self.obstacle_pose_radius = rospy.get_param("/turtlebot2/obstacle_pose_radius", 0)
-        self.num_of_sector = rospy.get_param("/turtlebot2/num_of_sector", 1)
-        self.sensitiviy_distances = rospy.get_param("/turtlebot2/sensitiviy_distances")
        
         # We create two arrays based on the binary values that will be assigned
         # In the discretization method.
         laser_scan = self._check_laser_scan_ready()
 
-        self.center = Point()
-        self.center.x = self.center.y = -4.0
-
-        self.area_size = Point() 
-        self.area_size.x =self.area_size.y= 8.0
+        self.grid_size = Point() 
+        self.grid_size.x = self.grid_size.y = 4
 
         self.resolution = 0.5
-
-        obs_size = int(self.area_size.x*self.area_size.y/self.resolution**2)
-
-        high = np.full((1), self.area_size.x*self.area_size.y/self.resolution)
-        low = np.full((1), 0)
+        self.angle_resolution = 10 # degree
+        # We only use two integers [x, y, yaw]
+        high = np.concatenate((np.full((2), self.grid_size.x/self.resolution), np.full((1), 360/self.angle_resolution+1)))
+        low = np.concatenate((np.full((2), -self.grid_size.x/self.resolution), np.full((1), -360/self.angle_resolution)))
         
-        # We only use two integers
         self.observation_space = spaces.Box(low, high)
         
         rospy.logdebug("ACTION SPACES TYPE===>"+str(self.action_space))
         rospy.logdebug("OBSERVATION SPACES TYPE===>"+str(self.observation_space))
 
         self.velocity = rospy.get_param('/turtlebot2/velocity')
-        self.robot_movement_area = rospy.get_param('/turtlebot2/robot_movement_area')
         self.goal_point = rospy.get_param('/turtlebot2/goal_point')
         self.nsteps = rospy.get_param('/turtlebot2/nsteps')
 
+        self.goal_grid = [int((self.goal_point['x'])/self.resolution), int((self.goal_point['y'])/self.resolution)]
+        
         # Rewards
         self.area_violation_reward = rospy.get_param('turtlebot2/area_violation_reward')
         self.goal_reached_reward = rospy.get_param('turtlebot2/goal_reached_reward')
@@ -79,13 +65,14 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
         self.is_area_violated = False
         self.is_collision_detected = False
         self.is_goal_reached = False
-        self._nsteps_done = False
+        self.nsteps_done = False
 
-
+        self._check_odom_ready()
+        self._robot_pose = self.get_odom()
 
 
         # Here we will add any init functions prior to starting the MyRobotEnv
-        super(ObstacleAvoidance, self).__init__()
+        super(GridWorld, self).__init__()
 
     def _set_init_pose(self):
         """Sets the Robot in its init pose
@@ -113,7 +100,7 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
         self.is_area_violated = False
         self.is_collision_detected = False
         self.is_goal_reached = False
-        self._nsteps_done = False
+        self.nsteps_done = False
         
         # set obtacle pose randomly
         # self.set_model_state("unit_box_red",(0, 0) ,self.obstacle_pose_radius)
@@ -140,35 +127,23 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
         _linear_speed = 0.0
         _angular_speed = 0.0
 
-        if action == 0: #FORWARD
+        if action == 0: # i+1, j
             _linear_speed = self.velocity['linear']['x']
-            _angular_speed = 0.0
-            self.last_action = "FORWARD"
+            self.last_action = "i+1, j"
 
-        # if action == 1: #STOP
-        #     _linear_speed = 0.0
-        #     _angular_speed = 0.0
-        #     self.last_action = "STOP"
-
-        if action == 1: #TURN LEFT
-            _linear_speed = 1.5
+        elif action == 1: # i-1, j
             _angular_speed = self.velocity['angular']['z']
-            self.last_action = "TURN_LEFT"
+            self.last_action = "i-1, j"
 
-        if action == 2: #TURN RIGHT
-            _linear_speed = 1.5
-            _angular_speed = -1 * self.velocity['angular']['z']
-            self.last_action = "TURN_RIGHT"
-
-        # if action == 4: #BACKWARD
-        #     _linear_speed = -1 * self.velocity['linear']['x']
-        #     _angular_speed = 0.0
-        #     self.last_action = "BACKWARD"
+        elif action == 2: # i, j+1
+            _angular_speed = -1* self.velocity['angular']['z']
+            self.last_action = "i, j+1"
         
+        self.move_base(_linear_speed, _angular_speed)
 
         # We tell TurtleBot2 the linear and angular speed to set to execute
         # 0.2 sn uyuyor
-        self.move_base(_linear_speed, _angular_speed, epsilon=0.05, update_rate=10)
+        # self.move_base(_linear_speed, _angular_speed, epsilon=0.05, update_rate=10)
         rospy.loginfo("end action")
         rospy.logdebug("END Set Action ==>"+str(action))
 
@@ -180,15 +155,12 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
         :return:
         """
         # rospy.logdebug("Start Get Observation ==>")
-        
-        # scan = self.get_laser_scan()
-        
-        # self.observations = self.discretize_observation(scan)
-        
-        # rospy.logdebug("Observations==>"+str(self.observations))
-        # rospy.logdebug("END Get Observation ==>")
-        
-        self.observations = [int((self.robot_pose.pose.pose.position.y- self.center.y) * (self.area_size.x /self.resolution**2) + (self.robot_pose.pose.pose.position.x - self.center.x)/self.resolution)]
+        odom = self.get_odom()
+        quat = [odom.pose.pose.orientation.x, odom.pose.pose.orientation.y, odom.pose.pose.orientation.z, odom.pose.pose.orientation.w]
+        _, _, yaw = euler_from_quaternion(quat)
+        yaw = int(math.degrees(yaw)/self.angle_resolution)
+        x, y = self.odom_to_grid(odom)
+        self.observations = [x, y, yaw]
 
         return self.observations
 
@@ -196,65 +168,53 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
     def _is_done(self, observations):
         self._episode_done = False
 
-        # # nothing learned
-        # if self.cumulated_steps == self.nsteps -1:
-        #     self._episode_done = True
-        #     self._nsteps_done = True
-        # # print("robot pose: {}".format(self.robot_pose))
-
         # goal has reached                   
-        distance_to_goal  = np.sqrt(pow(self.robot_pose.pose.pose.position.x - self.goal_point['x'], 2) + pow(self.robot_pose.pose.pose.position.y - self.goal_point['y'], 2))
-        if distance_to_goal <= 0.2:
-            self._episode_done = True
+        if observations == self.goal_grid:
+            print("goal has reached")
             self.is_goal_reached = True
-            print("distance to goal")
+            self._episode_done = True
 
         # collision detected
         scan = self.get_laser_scan()
-        if min(scan.ranges)<= 0.3:
+        if min(scan.ranges)<= 0.4:
             print("min scan done")
-            self._episode_done = True
             self.is_collision_detected = True
-
-        # for i, item in enumerate(self.observations):
-        #     if item == len(self.sensitiviy_distances) -2:
-        #         self._episode_done = True
-        #         self.is_collision_detected = True
-                
-        # area violation
-        if self.robot_pose.pose.pose.position.x > self.robot_movement_area['max']['x'] or self.robot_pose.pose.pose.position.y > self.robot_movement_area['max']['y'] or self.robot_pose.pose.pose.position.x < self.robot_movement_area['min']['x'] or self.robot_pose.pose.pose.position.y < self.robot_movement_area['min']['y']:
             self._episode_done = True
-            self.is_area_violated = True
+
+        # area violation
+        if observations[0]<=int(-1*self.grid_size.x/self.resolution) or observations[0]>= int(self.grid_size.x/self.resolution) or observations[1]<=int(-1*self.grid_size.y/self.resolution) or observations[1]>= int(self.grid_size.y/self.resolution):
             print("area violation done")
+            self.is_area_violated = True
+            self._episode_done = True
 
         if self.cumulated_steps == 299:
+            print("step end")
             self._episode_done = True
+            self.nsteps_done = True
         return self._episode_done
 
     def _compute_reward(self, observations, done):
         reward = 0
-        
-        distance_to_goal  = np.sqrt(pow(self.robot_pose.pose.pose.position.x - self.goal_point['x'], 2) + pow(self.robot_pose.pose.pose.position.y - self.goal_point['y'], 2))
-        reward += 1.0/distance_to_goal
-        
-        # if self.is_area_violated or self._nsteps_done:
-        #     reward += self.area_violation_reward * distance_to_goal * 0.05 
-
-        if self.is_collision_detected:
-            reward+= self.collsion_detected_reward
-
         if self.is_goal_reached:
-            reward+= self.goal_reached_reward
-
-        # time reward
-        reward -= 0.2
+            reward+= 100
+        if self.is_collision_detected:
+            reward-= 50
+        if self.is_area_violated:
+            reward-=20
+        
+        dist = math.sqrt((observations[0] - self.goal_grid[0])**2 + (observations[1] - self.goal_grid[1])**2)
+        
+        if dist!=0:
+            reward+= 5.0/dist
+        else:
+            reward+=5.0
+        
+        reward-=0.2
          
         self.cumulated_reward += reward
         self.cumulated_steps += 1
         return reward
 
-    def odom_cb(self, msg):
-        self.robot_pose = msg
 
     def get_random_x_y(self, radius):
         x = np.random.uniform(-radius, radius)
@@ -277,32 +237,8 @@ class ObstacleAvoidance(turtlebot2_env.TurtleBot2Env):
                 rospy.logwarn(res)
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
-
-    def discretize_observation(self, scan):
-        """
-        Discards all the laser readings that are not multiple in index of number_of_sectors
-        value.
-        """
-
-        obs_size = int(len(scan.ranges)/ self.num_of_sector)
-        
-        current_sector = -1
-        
-        obs = [0] * self.num_of_sector
-        
-        min_dist = float('inf')
-        
-        for i, item in enumerate(scan.ranges):
-            if i%obs_size == 0:
-                current_sector+= 1
-                min_dist = float('inf')
-
-            if item < min_dist:
-                min_dist = item
-                for j, sensitiviy_distance  in enumerate(self.sensitiviy_distances):
-                    if item >= sensitiviy_distance:
-                        # print("sector: {} item: {}".format(current_sector, j))
-                        obs[current_sector] = j
-                        break
-
-        return obs
+    
+    def odom_to_grid(self, odom):
+        x = int((odom.pose.pose.position.x)/self.resolution)
+        y = int((odom.pose.pose.position.y)/self.resolution)
+        return [x, y]

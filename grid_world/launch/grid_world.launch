@@ -1,0 +1,6 @@
+<launch>
+    <!-- This version uses the openai_ros environments -->
+    <rosparam command="load" file="$(find grid_world)/config/grid_world.yaml" />
+    <!-- Launch the training system -->
+    <node pkg="grid_world" name="grid_world" type="start_qlearn.py" output="screen"/>
+</launch>

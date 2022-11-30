@@ -9,7 +9,7 @@ from gym import wrappers
 import rospy
 import rospkg
 # import our training environment
-import obstacle_avoidance
+import grid_world
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
@@ -17,20 +17,14 @@ import os
 
 from geometry_msgs.msg import Pose
 
-# def defineLogVariables():
-#     return {
-#         "qlearn.q": {},
-#         "current_episode": 0,
-#         "nepisodes": 0   
-#     }
 
 def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'valid') / w
 
 if __name__ == '__main__':
 
-    rospy.init_node('obstacle_avoidance', anonymous=True, log_level=rospy.WARN)
-    filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/models/model17.pkl"
+    rospy.init_node('grid_world', anonymous=True, log_level=rospy.WARN)
+    filename = "/home/mky/rl_ws/src/openai_examples_projects/grid_world/models/model14.pkl"
 
     # log_varaiables = defineLogVariables()
     log_values = {
@@ -45,7 +39,7 @@ if __name__ == '__main__':
             pickle.dump(log_values, f)     
 
     # Create the Gym environment
-    env = gym.make('ObstacleAvoidance-v0')
+    env = gym.make('GridWorld-v0')
     rospy.loginfo("Gym environment done")
 
     # Set the logging system
@@ -80,7 +74,7 @@ if __name__ == '__main__':
         qlearn.q = log_values['qlearn.q']
 
     last_episode = log_values['current_episode']
-    plt.plot(moving_average(log_values['cumulated_reward'], 100))
+    plt.plot(moving_average(log_values['cumulated_reward'], 15))
     plt.show()
     start_time = time.time()
     highest_reward = 0

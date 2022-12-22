@@ -22,9 +22,8 @@ def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'valid') / w
 
 if __name__ == '__main__':
-
     rospy.init_node('grid_world', anonymous=True, log_level=rospy.WARN)
-    filename = "/home/mky/rl_ws/src/openai_examples_projects/grid_world/models/model14.pkl"
+    filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/grid_world/models/model14.pkl"
 
     # log_varaiables = defineLogVariables()
     log_values = {
@@ -74,8 +73,10 @@ if __name__ == '__main__':
         qlearn.q = log_values['qlearn.q']
 
     last_episode = log_values['current_episode']
-    plt.plot(moving_average(log_values['cumulated_reward'], 15))
+    plt.plot(moving_average(log_values['cumulated_reward'], 1500))
     plt.show()
+    # plt.show()
+
     start_time = time.time()
     highest_reward = 0
     
@@ -92,7 +93,7 @@ if __name__ == '__main__':
 
         cumulated_reward = 0
         done = False
-        if qlearn.epsilon > 0.1:
+        if qlearn.epsilon > 0.02:
             qlearn.epsilon *= epsilon_discount
 
         # Initialize the environment and get first state of the robot

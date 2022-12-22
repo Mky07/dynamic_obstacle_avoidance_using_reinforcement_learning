@@ -6,7 +6,7 @@ turtlebot2: #namespace
     #qlearn parameters
     alpha: 0.8
     gamma: 0.9
-    epsilon: 0.1
+    epsilon: 0.02
     epsilon_discount: 1.0
     nepisodes: 15000
     nsteps: 300

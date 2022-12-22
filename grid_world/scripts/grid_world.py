@@ -132,10 +132,12 @@ class GridWorld(turtlebot2_env.TurtleBot2Env):
             self.last_action = "i+1, j"
 
         elif action == 1: # i-1, j
+            _linear_speed = 0.3
             _angular_speed = self.velocity['angular']['z']
             self.last_action = "i-1, j"
 
         elif action == 2: # i, j+1
+            _linear_speed = 0.3
             _angular_speed = -1* self.velocity['angular']['z']
             self.last_action = "i, j+1"
         
@@ -167,9 +169,10 @@ class GridWorld(turtlebot2_env.TurtleBot2Env):
                                                              
     def _is_done(self, observations):
         self._episode_done = False
-
-        # goal has reached                   
-        if observations == self.goal_grid:
+        print("goal grid: {}".format(self.goal_grid))
+        
+        # goal has reached  
+        if observations[0] == self.goal_grid[0] and observations[1] == self.goal_grid[1]:
             print("goal has reached")
             self.is_goal_reached = True
             self._episode_done = True

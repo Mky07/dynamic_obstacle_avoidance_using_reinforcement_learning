@@ -1,0 +1,6 @@
+<launch>
+    <!-- This version uses the openai_ros environments -->
+    <rosparam command="load" file="$(find DQN_grid_world)/config/config.yaml" />
+    <!-- Launch the training system -->
+    <node pkg="DQN_grid_world" name="DQN_grid_world" type="start.py" output="screen"/>
+</launch>

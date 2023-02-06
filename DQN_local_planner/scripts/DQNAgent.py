@@ -159,7 +159,7 @@ if __name__ == '__main__':
     agent.epsilon = feedback.log_values['last_epsilon']
 
     path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output2/"
-    w_num = "01850"
+    w_num = "01950"
     filename = "weights_"+w_num+".hdf5"
     agent.load(path + filename) 
 

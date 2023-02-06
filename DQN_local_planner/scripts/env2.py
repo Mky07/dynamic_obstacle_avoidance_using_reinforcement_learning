@@ -68,8 +68,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.global_plan = self.create_gobal_plan()
         # print("GLobal plan: {}".format(self.global_plan))
         
-
-        self.look_ahead_dist = 0.4
+        self.look_ahead_dist = 1.5
         self.goal_th = 0.4
         self.over_dist = 3
 

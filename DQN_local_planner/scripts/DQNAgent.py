@@ -15,7 +15,7 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.callbacks import Callback
 from keras import backend as k
-import enviroment
+import env2
 import rospy
 import rospkg
 
@@ -32,10 +32,11 @@ class Feedback:
     def __init__(self):
         # log_varaiables = defineLogVariables()
         self.log_values = {
-            "cumulated_reward": []
+            "cumulated_reward": [],
+            "last_epsilon": 0.99
         }
         
-        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model1.pkl"
+        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model2.pkl"
 
         if not os.path.exists(self.filename):
             with open(self.filename, 'wb') as f:
@@ -43,10 +44,11 @@ class Feedback:
 
         self.load()
 
-    def save(self, cumulated_reward):
+    def save(self, cumulated_reward, epsilon):
         # save qlearn values to file
         with open(self.filename, 'wb') as f:
             self.log_values['cumulated_reward'].append(cumulated_reward)
+            self.log_values['last_epsilon'] = epsilon
             pickle.dump(self.log_values, f)
 
     def load(self):
@@ -70,9 +72,9 @@ class DQNAgent:
         # q learning params
         self.gamma = 0.95
 
-        self.epsilon = 0.05 # değiştirmeyi unutma !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        self.epsilon = 0.99
         self.epsilon_decay = 0.99
-        self.epsilon_min = 0.05
+        self.epsilon_min = 0.02
 
         # neural network params
         self.learning_rate = 0.0001
@@ -81,10 +83,14 @@ class DQNAgent:
         self.model = self._build_model()
         self.model.summary()
 
+    def get_epsilon(self):
+        return self.epsilon
+
     def _build_model(self):
         model = Sequential()
 
         model.add(Dense(64, input_dim = self.state_size, activation='relu'))
+        model.add(Dense(128, activation='relu'))
         model.add(Dense(32, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
 
@@ -127,10 +133,10 @@ class DQNAgent:
 if __name__ == '__main__':
     rospy.init_node('DQN_Agent', anonymous=True, log_level=rospy.WARN)
 
-    env = gym.make('LocalPlannerWorld-v0')
+    env = gym.make('LocalPlannerWorld-v1')
 
     # Set parameters
-    output_dir="../model_output1/"
+    output_dir="../model_output2/"
 
     feedback = Feedback()
     log_values = feedback.log_values['cumulated_reward']
@@ -150,11 +156,12 @@ if __name__ == '__main__':
     print(f"action size: {action_size}")
 
     agent = DQNAgent(state_size, action_size)
+    agent.epsilon = feedback.log_values['last_epsilon']
 
-    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output1/"
-    w_num = "03700"
+    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output2/"
+    w_num = "01850"
     filename = "weights_"+w_num+".hdf5"
-    agent.load(path + filename)
+    agent.load(path + filename) 
 
     batch_size = 32
 
@@ -195,7 +202,7 @@ if __name__ == '__main__':
         print("cumulated_rewards: {}".format(cumulated_rewards[-100:]))
         
         # save to file
-        feedback.save(cumulated_reward) 
+        feedback.save(cumulated_reward, agent.get_epsilon()) 
 
         if len(agent.memory) >batch_size:
             agent.replay(batch_size)

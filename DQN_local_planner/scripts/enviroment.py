@@ -36,18 +36,16 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.nsteps = 300
 
         # create global plan
-        self.resolution = 0.5
+        self.resolution = 0.1
         self.initial_point = [-3.9, 0.0]
         self.goal_point = [3.0, 0.0]
-        self.global_plan1 = self.create_global_plan(self.initial_point, [0.0, 3.0], self.resolution)
-        self.global_plan2 = self.create_global_plan([0.0, 3.0], self.goal_point, self.resolution)
-        self.global_plan = self.global_plan1 + self.global_plan2
+        self.global_plan = self.create_global_plan(self.initial_point, self.goal_point, self.resolution)
 
         print("GLobal plan: {}".format(self.global_plan))
         
         # other params
         self.goal_th = 0.5
-        self.over_dist = 10
+        self.over_dist = 5
         self.max_range = 30
         
         # models input = global plan [size = look ahead dist] | sector_size  => total state = 3 + 36
@@ -243,7 +241,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         plan = []
 
         i=0
-        while i<=1:
+        while i<=1+t:
             px = (1-i)*initial_point[0] + i*goal_point[0]
             py = (1-i)*initial_point[1] + i*goal_point[1]
             plan.append([px, py])
@@ -251,7 +249,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             i+= t
         
         return plan
- 
+     
     def get_partial_robot_to_plan_dist(self, dist_list, closed_dist_index):
         """
         robota en yakin nokta bulunmustu.
@@ -272,7 +270,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def robot_to_plan_dist(self):
         """
         robot ile global rota arasindaki mesafeler bulunuyor.
-        Bunun avantaji global rotayi (x,y) gibi lokal degiskenden kurtarmaktir.
+        Bunun amacı global rotayi (x,y) gibi lokal degiskenden kurtarmaktir.
         """
         odom = self.get_odom()    
 

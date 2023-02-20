@@ -36,7 +36,7 @@ class Feedback:
             "last_epsilon": 0.99
         }
         
-        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model2.pkl"
+        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model3.pkl"
 
         if not os.path.exists(self.filename):
             with open(self.filename, 'wb') as f:
@@ -73,8 +73,8 @@ class DQNAgent:
         self.gamma = 0.95
 
         self.epsilon = 0.99
-        self.epsilon_decay = 0.99
-        self.epsilon_min = 0.02
+        self.epsilon_decay = 0.999
+        self.epsilon_min = 0.05
 
         # neural network params
         self.learning_rate = 0.0001
@@ -129,14 +129,13 @@ class DQNAgent:
     def save(self, name):
         self.model.save_weights(name)
 
-
 if __name__ == '__main__':
     rospy.init_node('DQN_Agent', anonymous=True, log_level=rospy.WARN)
 
     env = gym.make('LocalPlannerWorld-v1')
 
     # Set parameters
-    output_dir="../model_output2/"
+    output_dir="../model_output3/"
 
     feedback = Feedback()
     log_values = feedback.log_values['cumulated_reward']
@@ -156,10 +155,11 @@ if __name__ == '__main__':
     print(f"action size: {action_size}")
 
     agent = DQNAgent(state_size, action_size)
+
     agent.epsilon = feedback.log_values['last_epsilon']
 
-    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output2/"
-    w_num = "01950"
+    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output3/"
+    w_num = "03850"
     filename = "weights_"+w_num+".hdf5"
     agent.load(path + filename) 
 
@@ -170,7 +170,7 @@ if __name__ == '__main__':
 
     cumulated_rewards = feedback.log_values['cumulated_reward']
 
-    plt.plot(moving_average(cumulated_rewards, 100))
+    plt.plot(moving_average(cumulated_rewards, 200))
     plt.show()
 
     for e in range(n_episodes):

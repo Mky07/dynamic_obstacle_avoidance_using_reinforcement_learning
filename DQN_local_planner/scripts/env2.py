@@ -11,7 +11,7 @@ from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
 from gazebo_msgs.srv import *
 from gazebo_msgs.msg import ModelState
-from math import sqrt, atan2, pi
+from math import sqrt, atan2, pi, ceil
 
 import tf2_ros
 # import tf2_geometry_msgs
@@ -45,13 +45,13 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.sector_resolution = 30
         discrete_range_map, sector_size = self.get_discrete_range_map(range_max=30)
 
-        s1_h = np.full(2 , self.to_discrete(max_dist, self.dist_resolution)) # x, y 
-        s2_h = np.full(1, self.to_discrete(pi, self.angle_resolution)) # theta
+        s1_h = np.full(1, self.to_discrete(max_dist, self.dist_resolution)) # min_dist 
+        s2_h = np.full(1, self.to_discrete(pi + self.angle_resolution, self.angle_resolution)) # theta
         s3_h = np.full(self.to_discrete(len(self.scan.ranges),self.sector_resolution), sector_size) # scan
 
-        s1_l = np.full(2 , self.to_discrete(-max_dist, self.dist_resolution)) # x, y 
-        s2_l = np.full(1, self.to_discrete(-pi, self.angle_resolution)) # theta
-        s3_l = np.full(self.to_discrete(len(self.scan.ranges),self.sector_resolution), 0) # scan
+        s1_l = np.full(1 , self.to_discrete(-max_dist, self.dist_resolution)) # min_dist
+        s2_l = np.full(1, self.to_discrete(-pi - self.angle_resolution, self.angle_resolution)) # theta
+        s3_l = np.full(self.to_discrete(len(self.scan.ranges), self.sector_resolution), 0) # scan
 
         high = np.concatenate((s1_h, s2_h, s3_h))
         low = np.concatenate((s1_l, s2_l, s3_l))
@@ -170,15 +170,15 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         :return:
         """
         self.odom = self.get_odom()
-        x, y, theta = self.get_pose_wrt_relative_coordinate(self.global_plan, self.odom, self.look_ahead_dist)
+        min_dist, theta = self.get_pose_wrt_relative_coordinate(self.global_plan, self.odom, self.look_ahead_dist)
         
         # continuous space to discrete space
-        discrete_robot_x, discrete_robot_y, discrete_robot_theta = self.to_discrete(x, self.dist_resolution), self.to_discrete(y, self.dist_resolution), self.to_discrete(theta, self.angle_resolution)
+        discrete_min_dist, discrete_robot_theta = self.to_discrete(min_dist, self.dist_resolution), self.to_discrete_ceil(theta - self.angle_resolution/2.0, self.angle_resolution)
         
         self.scan = self.get_laser_scan()
         scan_state = self.discrete_scan(self.scan, self.sector_resolution)
 
-        self.observations = [discrete_robot_x, discrete_robot_y, discrete_robot_theta] + scan_state
+        self.observations = [discrete_min_dist, discrete_robot_theta] + scan_state
 
         print("observations: {}".format(self.observations))
         return self.observations
@@ -188,7 +188,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self._episode_done = False
 
         # collision detected
-        if min(observations[3:])<= 6: # 6 = 0.6 cm. calculated from range_map
+        if min(observations[2:])<= 6: # 6 = 0.6 cm. calculated from range_map
             print("min scan done")
             self.is_collision_detected = True
             self._episode_done = True
@@ -204,8 +204,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             self._episode_done = True
 
         # when it's too far from global plan
-        dist = sqrt((observations[0])**2 + (observations[1])**2)        
-        if dist > self.to_discrete(self.over_dist, self.dist_resolution):
+        if observations[0] > self.to_discrete(self.over_dist, self.dist_resolution):
             print("too far from global plan")
             self.is_over_dist = True
             self._episode_done = True
@@ -220,8 +219,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def _compute_reward(self, observations, done):
         reward = 0
 
-        dist = sqrt((observations[0])**2 + (observations[1])**2)        
-        reward-= 0.05 * dist
+        reward-= 0.1 * observations[0]
 
         if done:
             if self.is_collision_detected:
@@ -229,13 +227,17 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             if self.is_goal_reached:
                 reward+=200
             if self.is_over_dist:
-                reward-=50
+                reward-=70
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
         
         print("cumulated reward: {}, reward: {}".format(self.cumulated_reward,reward))
         return reward
+
+
+    def to_discrete_ceil(self, var, resolution):
+        return ceil(var/resolution)
 
 
     def to_discrete(self, var, resolution):
@@ -339,7 +341,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             if (dist<=look_ahead_dist):
                 look_ahead_point = path.poses[idx].pose.position
             idx+=1
-
+        
+        print("look ahead point:{}".format(look_ahead_point))
         # print("path: {}".format(path.poses[:5]))
         # print("path end: {}".format(path.poses[-5:]))
         # print("robot_pose:{}\n closed_pose:{}\n look ahead point:{}\n".format(robot_pose.pose.pose.position, closed_point, look_ahead_point))
@@ -348,10 +351,12 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         look_ahead_theta =  atan2(look_ahead_point.y - robot_y, look_ahead_point.x - robot_x) # range: [-pi, pi]
 
         # get (x,y,theta) w.r.t. this coordinate system
-        x, y, theta = robot_x - look_ahead_point.x , robot_y - look_ahead_point.y, robot_theta - look_ahead_theta
-        return [x, y, theta]
+        theta_diff = robot_theta - look_ahead_theta
+        return [min_dist, theta_diff]
 
     def discrete_scan(self, scan:LaserScan, sector_resolution):
+
+        # robot açı çözünürlüklerini robot bakışındakilerin çözünürlüklerini arttır.
         discrete_range_map, state_size = self.get_discrete_range_map(scan.range_max)
         # print("map: {}".format(discrete_range_map))
         scan_state = [state_size]*self.to_discrete(len(scan.ranges), sector_resolution)
@@ -411,3 +416,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
                 rospy.logwarn(res)
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
+
+# koordinat düzelemini yeniden oluştur. # min_dist alındı. x,y kullanılmıyor.
+# look_ahead açısını -10 +10 arası yap # eklendi
+# x, y farklı ödül # min_dist alındı. x,y kullanılmıyor.
+# theta acısı için ceza eklenebilir mi?

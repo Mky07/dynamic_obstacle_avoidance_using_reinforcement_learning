@@ -68,10 +68,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.global_plan = self.create_gobal_plan()
         # print("GLobal plan: {}".format(self.global_plan))
         
-        self.look_ahead_dist = 1.5
-        self.goal_th = 0.4
-        self.over_dist = 3
-
+        self.look_ahead_dist = 1.0
+        self.goal_th = 0.2
+        self.over_dist = 1.7
+        self.over_angle = 2.4434609528 # 90 deg
         # For Info Purposes
         self.cumulated_reward = 0.0
         self.cumulated_steps = 0.0
@@ -79,6 +79,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # Set to false Done, because its calculated asyncronously
         self._episode_done = False
         self.is_over_dist = False
+        self.is_over_angle = False
         self.is_goal_reached = False
         self.nsteps_done = False
         self.is_collision_detected=False
@@ -110,6 +111,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # Set to false Done, because its calculated asyncronously
         self._episode_done = False
         self.is_over_dist = False
+        self.is_over_angle = False
         self.is_goal_reached = False
         self.nsteps_done = False
         self.is_collision_detected=False
@@ -122,6 +124,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # engeli rastgele baslat
         self.set_model_state("unit_box_red", -1.5, 1.5, -6, 6)
 
+        self.set_model_state("unit_box_red_0", 150, 150, 150, 150)
+        self.set_model_state("unit_box_red_1", 150, 150, 150, 150)
+        self.set_model_state("unit_box_red_2", 150, 150, 150, 150)
+        self.set_model_state("unit_box_red_3", 150, 150, 150, 150)
 
         # This is necessary to give the laser sensors to refresh in the new reseted position.
         rospy.logwarn("Waiting...")
@@ -209,6 +215,13 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             self.is_over_dist = True
             self._episode_done = True
 
+        # robot acısı çok fazla ise işlemi sonlandır.
+        if abs(observations[1]) >= self.to_discrete_ceil(self.over_angle - self.angle_resolution/2.0, self.angle_resolution):
+            print("robot angle too much")
+            self.is_over_angle = True
+            self._episode_done = True
+
+
         if self.cumulated_steps == self.nsteps-1:
             print("steps end")
             self._episode_done = True
@@ -219,7 +232,21 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def _compute_reward(self, observations, done):
         reward = 0
 
-        reward-= 0.1 * observations[0]
+        # en yakın noktadan çok uzaktaysa
+        if observations[0] == 0:
+            reward += 0.5 
+        elif observations[0] == 1:
+            reward += 0.3 
+        else:
+            reward+= 0.3/observations[0]
+
+        # look ahead e göre robot açısı az ise ödül ver
+        if observations[1] == 0:
+            reward += 0.2 
+        elif abs(observations[1]) == 1:
+            reward += 0.1 
+        else:
+            reward+= 0.1/abs(observations[1])
 
         if done:
             if self.is_collision_detected:
@@ -227,7 +254,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             if self.is_goal_reached:
                 reward+=200
             if self.is_over_dist:
-                reward-=70
+                reward-=50
+            if self.is_over_angle:
+                reward-=20
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
@@ -244,7 +273,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         return int(var/resolution)
 
     def create_gobal_plan(self):
-        global_plan_resolution = 0.2
+        global_plan_resolution = 0.05
 
         start = PoseStamped()
         self.odom = self.get_odom()

@@ -68,9 +68,9 @@ class DQNAgent:
         # q learning params
         self.gamma = 0.95
 
-        self.epsilon = 0.02
+        self.epsilon = 0.99
         self.epsilon_decay = 0.995
-        self.epsilon_min = 0.01
+        self.epsilon_min = 0.05
 
         # neural network params
         self.learning_rate = 0.0001

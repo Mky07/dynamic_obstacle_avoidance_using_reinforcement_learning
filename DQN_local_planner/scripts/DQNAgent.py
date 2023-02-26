@@ -36,7 +36,7 @@ class Feedback:
             "last_epsilon": 0.99
         }
         
-        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model3.pkl"
+        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model4.pkl"
 
         if not os.path.exists(self.filename):
             with open(self.filename, 'wb') as f:
@@ -72,8 +72,8 @@ class DQNAgent:
         # q learning params
         self.gamma = 0.95
 
-        self.epsilon = 0.99
-        self.epsilon_decay = 0.999
+        self.epsilon = 0.999
+        self.epsilon_decay = 0.9995
         self.epsilon_min = 0.05
 
         # neural network params
@@ -135,7 +135,7 @@ if __name__ == '__main__':
     env = gym.make('LocalPlannerWorld-v1')
 
     # Set parameters
-    output_dir="../model_output3/"
+    output_dir="../model_output4/"
 
     feedback = Feedback()
     log_values = feedback.log_values['cumulated_reward']
@@ -158,10 +158,10 @@ if __name__ == '__main__':
 
     agent.epsilon = feedback.log_values['last_epsilon']
 
-    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output3/"
-    w_num = "03850"
+    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output4/"
+    w_num = "06250"
     filename = "weights_"+w_num+".hdf5"
-    agent.load(path + filename) 
+    agent.load(path + filename)
 
     batch_size = 32
 
@@ -208,5 +208,5 @@ if __name__ == '__main__':
             agent.replay(batch_size)
 
         if e % 50 == 0:
-            agent.save(output_dir + "weights_"+"{:05d}".format(int(w_num)+e+50) + ".hdf5")    
+            agent.save(output_dir + "weights_"+"{:05d}".format(int(w_num)+e) + ".hdf5")    
     env.close()

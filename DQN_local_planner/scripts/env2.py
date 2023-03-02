@@ -12,6 +12,9 @@ from sensor_msgs.msg import LaserScan
 from gazebo_msgs.srv import *
 from gazebo_msgs.msg import ModelState
 from math import sqrt, atan2, pi, ceil
+import xml.etree.ElementTree as ET
+
+from gazebo_msgs.srv import SpawnModel, SpawnModelRequest, SpawnModelResponse
 
 import tf2_ros
 # import tf2_geometry_msgs
@@ -62,7 +65,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-
+        self.goal_point_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/Untitled/model.sdf").getroot(), encoding='unicode', method='xml')
+        self.path_point_green_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/path_point_green/model.sdf").getroot(), encoding='unicode', method='xml')
+        self.path_point_yellow_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/path_point_yellow/model.sdf").getroot(), encoding='unicode', method='xml')
+        
         # create global plan
         self.goal = PoseStamped()
         self.global_plan = self.create_gobal_plan()
@@ -70,7 +76,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         
         self.look_ahead_dist = 1.0
         self.goal_th = 0.2
-        self.over_dist = 1.7
+        self.over_dist = 2.5
         self.over_angle = 2.4434609528 # 90 deg
         # For Info Purposes
         self.cumulated_reward = 0.0
@@ -83,6 +89,14 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.is_goal_reached = False
         self.nsteps_done = False
         self.is_collision_detected=False
+
+        # rospy.wait_for_service("/gazebo/spawn_sdf_model")
+        rospy.wait_for_service("/gazebo/set_model_state")
+
+        # tmp = Pose()
+        # tmp.orientation.w = 1.0
+        # self.spawn_model("closed_pose", tmp, self.path_point_yellow_xml)
+
 
         super(LocalPlannerWorld, self).__init__()
 
@@ -104,6 +118,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         of an episode.
         :return:
         """
+
         # For Info Purposes
         self.cumulated_reward = 0.0
         self.cumulated_steps = 0.0
@@ -120,10 +135,18 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         # start pose
         # self.set_model_state("waffle", -5, 0, -5, 5)
-        
-        # engeli rastgele baslat
-        self.set_model_state("unit_box_red", -1.5, 1.5, -6, 6)
+        # hedef nokta 
 
+        goal_x, goal_y =self.global_plan.poses[-1].pose.position.x, self.global_plan.poses[-1].pose.position.y
+        self.set_model_state("Untitled",goal_x, goal_x, goal_y, goal_y)        
+
+        # engeli rastgele baslat
+        self.set_model_state("unit_box_red", -0.5, 0.5, -2, 2)
+
+        # for i, pose in enumerate(self.global_plan.poses):
+        #     if i%5 == 0:
+        #         self.spawn_model("pose_" + str(i), pose.pose, self.path_point_yellow_xml)
+    
         self.set_model_state("unit_box_red_0", 150, 150, 150, 150)
         self.set_model_state("unit_box_red_1", 150, 150, 150, 150)
         self.set_model_state("unit_box_red_2", 150, 150, 150, 150)
@@ -282,7 +305,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         
         # goal rastgele seçiliyor. Buradaki parametreleri farklı bir yerden çağırmayı unutma!!!
-        self.goal.pose.position = Point(np.random.uniform(2, 5), np.random.uniform(-10, 10), 0.0)  
+        self.goal.pose.position = Point(np.random.uniform(2, 5), np.random.uniform(-4, 4), 0.0)  
         print("** goal: **\n{}".format(self.goal.pose.position))
 
         poses = []
@@ -360,6 +383,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
                 closed_point = pose.pose.position
                 closed_point_idx = i
         
+        # self.set_model_state("closed_pose",closed_point.x, closed_point.x, closed_point.y, closed_point.y)
+
         # find look ahead dist point
         dist = 0
         look_ahead_point = Point()
@@ -431,7 +456,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         return discrete_range_map, state_size
 
     def set_model_state(self, model_name, min_x, max_x, min_y, max_y):
-        rospy.wait_for_service("/gazebo/set_model_state")
+
         res = SetModelStateResponse()
         while not res.success:
             # random pose for obstacle
@@ -445,6 +470,22 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
                 rospy.logwarn(res)
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
+
+    def spawn_model(self, model_name, initial_pose, model_xml, reference_frame = "world"):
+        res = SpawnModelResponse()
+        # random pose for obstacle
+        try:
+            set_spawn_model = rospy.ServiceProxy('/gazebo/spawn_sdf_model', SpawnModel)
+            req = SpawnModelRequest()
+            req.model_name = model_name
+            req.initial_pose = initial_pose
+            req.model_xml = model_xml
+            req.reference_frame = reference_frame
+            res = set_spawn_model(req)
+            rospy.logwarn(res)
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)     
+  
 
 # koordinat düzelemini yeniden oluştur. # min_dist alındı. x,y kullanılmıyor.
 # look_ahead açısını -10 +10 arası yap # eklendi

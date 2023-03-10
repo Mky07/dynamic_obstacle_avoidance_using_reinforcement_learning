@@ -36,7 +36,7 @@ class Feedback:
             "last_epsilon": 0.99
         }
         
-        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model4.pkl"
+        self.filename = "/home/muharrem/rl_ws/src/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model4.pkl"
 
         if not os.path.exists(self.filename):
             with open(self.filename, 'wb') as f:
@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
     agent.epsilon = feedback.log_values['last_epsilon']
 
-    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output4/"
+    path = "/home/muharrem/rl_ws/src/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output4/"
     dir_list = os.listdir(path)
 
     max_str = '00000'

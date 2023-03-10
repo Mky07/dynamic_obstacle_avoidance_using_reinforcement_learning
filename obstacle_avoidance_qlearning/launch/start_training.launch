@@ -1,6 +1,0 @@
-<launch>
-    <!-- This version uses the openai_ros environments -->
-    <rosparam command="load" file="$(find obstacle_avoidance_qlearning)/config/obstacle_avoidance.yaml" />
-    <!-- Launch the training system -->
-    <node pkg="obstacle_avoidance_qlearning" name="obstacle_avoidance" type="start_qlearn.py" output="screen"/>
-</launch>

@@ -65,9 +65,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(100.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.goal_point_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/Untitled/model.sdf").getroot(), encoding='unicode', method='xml')
-        self.path_point_green_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/path_point_green/model.sdf").getroot(), encoding='unicode', method='xml')
-        self.path_point_yellow_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/path_point_yellow/model.sdf").getroot(), encoding='unicode', method='xml')
+        # self.goal_point_xml = ET.tostring(ET.parse("/home/muharrem/model_editor_models/Untitled/model.sdf").getroot(), encoding='unicode', method='xml')
+        # self.path_point_green_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/path_point_green/model.sdf").getroot(), encoding='unicode', method='xml')
+        # self.path_point_yellow_xml = ET.tostring(ET.parse("/home/mky/model_editor_models/path_point_yellow/model.sdf").getroot(), encoding='unicode', method='xml')
         
         # create global plan
         self.goal = PoseStamped()

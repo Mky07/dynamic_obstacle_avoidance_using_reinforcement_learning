@@ -303,7 +303,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         start.pose.position.x = self.odom.pose.pose.position.x
         start.pose.position.y = self.odom.pose.pose.position.y
 
-        
         # goal rastgele seçiliyor. Buradaki parametreleri farklı bir yerden çağırmayı unutma!!!
         self.goal.pose.position = Point(np.random.uniform(2, 5), np.random.uniform(-4, 4), 0.0)  
         print("** goal: **\n{}".format(self.goal.pose.position))

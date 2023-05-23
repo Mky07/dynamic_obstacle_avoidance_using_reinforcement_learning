@@ -36,7 +36,7 @@ class Feedback:
             "last_epsilon": 0.99
         }
         
-        self.filename = "/home/muharrem/rl_ws/src/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model4.pkl"
+        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model4.pkl"
 
         if not os.path.exists(self.filename):
             with open(self.filename, 'wb') as f:
@@ -78,7 +78,6 @@ class DQNAgent:
 
         # neural network params
         self.learning_rate = 0.0001
-
 
         self.model = self._build_model()
         self.model.summary()
@@ -158,7 +157,7 @@ if __name__ == '__main__':
 
     agent.epsilon = feedback.log_values['last_epsilon']
 
-    path = "/home/muharrem/rl_ws/src/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output4/"
+    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output4/"
     dir_list = os.listdir(path)
 
     max_str = '00000'
@@ -171,8 +170,10 @@ if __name__ == '__main__':
         max_str = f'{max_num:05d}'
     
         filename = "weights_"+max_str+".hdf5"
+        filename = "weights_"+"10050"+".hdf5" # silmeyi unutma
         print("[Agent] This file will be loaded. filename: {}".format(filename))
         agent.load(path + filename)
+
 
     batch_size = 32
 
@@ -180,44 +181,47 @@ if __name__ == '__main__':
     n_episodes = 10_000
 
     cumulated_rewards = feedback.log_values['cumulated_reward']
-
-    plt.plot(moving_average(cumulated_rewards, 200))
+    test_data = cumulated_rewards[:20100][::2]
+    # print("cumulated rewards: {}".format(cumulated_rewards[-200]))
+    plt.xlabel("Episode")
+    plt.ylabel("Cumulative Reward")
+    plt.plot(moving_average(test_data, 500))
     plt.show()
 
-    for e in range(n_episodes):
-        state = env.reset()
-        state = np.reshape(state, [1, state_size])
+    # for e in range(n_episodes):
+    #     state = env.reset()
+    #     state = np.reshape(state, [1, state_size])
         
-        cumulated_reward = 0.0
+    #     cumulated_reward = 0.0
         
-        for time in range(300):
+    #     for time in range(300):
 
-            # env.render()
-            action = agent.act(state)
+    #         # env.render()
+    #         action = agent.act(state)
 
-            next_state, reward, done, _ = env.step(action)
+    #         next_state, reward, done, _ = env.step(action)
             
-            cumulated_reward+= reward
+    #         cumulated_reward+= reward
             
-            next_state = np.reshape(next_state, [1, state_size])
+    #         next_state = np.reshape(next_state, [1, state_size])
 
-            agent.remember(state, action, reward, next_state, done)
+    #         agent.remember(state, action, reward, next_state, done)
 
-            state = next_state
+    #         state = next_state
 
-            if done:
-                print("episode: {}/{}, score: {}, e:{:2}".format(e, n_episodes, time, agent.epsilon))
-                break
+    #         if done:
+    #             print("episode: {}/{}, score: {}, e:{:2}".format(e, n_episodes, time, agent.epsilon))
+    #             break
         
-        cumulated_rewards.append(cumulated_reward)
-        print("cumulated_rewards: {}".format(cumulated_rewards[-100:]))
+    #     cumulated_rewards.append(cumulated_reward)
+    #     print("cumulated_rewards: {}".format(cumulated_rewards[-100:]))
         
-        # save to file
-        feedback.save(cumulated_reward, agent.get_epsilon()) 
+    #     # save to file
+    #     feedback.save(cumulated_reward, agent.get_epsilon()) 
 
-        if len(agent.memory) >batch_size:
-            agent.replay(batch_size)
+    #     if len(agent.memory) >batch_size:
+    #         agent.replay(batch_size)
 
-        if e % 50 == 0:
-            agent.save(output_dir + "weights_"+"{:05d}".format(int(max_str)+e) + ".hdf5")    
+    #     if e % 50 == 0:
+    #         agent.save(output_dir + "weights_"+"{:05d}".format(int(max_str)+e) + ".hdf5")    
     env.close()

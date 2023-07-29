@@ -18,84 +18,108 @@ from keras import backend as k
 import env2
 import rospy
 import rospkg
+from utils import moving_average
 
 import pickle
 import matplotlib.pyplot as plt
 
 import gc
 
-def moving_average(x, w):
-    return np.convolve(x, np.ones(w), 'valid') / w
 
-
-class Feedback:
+class Feedback():
     def __init__(self):
-        # log_varaiables = defineLogVariables()
-        self.log_values = {
-            "cumulated_reward": [],
-            "last_epsilon": 0.99
-        }
         
-        self.filename = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/model4.pkl"
-
-        if not os.path.exists(self.filename):
-            with open(self.filename, 'wb') as f:
-                pickle.dump(self.log_values, f)     
-
+        self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
+        self.filename = "model4.pkl"
+        self.file_path = self.parent_dir + self.filename
+                
+        # assign_params if not created
+        self.params={
+            "cumulated_rewards": [],
+            "epsilon": 0.99
+        }
+            
         self.load()
 
-    def save(self, cumulated_reward, epsilon):
-        # save qlearn values to file
-        with open(self.filename, 'wb') as f:
-            self.log_values['cumulated_reward'].append(cumulated_reward)
-            self.log_values['last_epsilon'] = epsilon
-            pickle.dump(self.log_values, f)
+    def save(self, params):
+        """
+        save parameters
+        """
+        
+        with open(self.file_path, 'wb') as f:
+            if not os.path.exists(self.file_path):
+                pass
+            else:
+                self.params["cumulated_rewards"]+= params["cumulated_rewards"]
+                self.params["epsilon"] = params["epsilon"]
+            pickle.dump(self.params, f)
 
     def load(self):
-            # load qlearn valeus from file
-        with open(self.filename, 'rb') as f:
-            self.log_values = pickle.load(f)
-
-
+        """
+        load parameters
+        """
+        with open(self.file_path, 'rb') as f:
+            self.params = pickle.load(f)
 
 class ClearMemory(Callback):
     def on_epoch_end(self, epoch, logs=None):
         gc.collect()
         k.clear_session()    
 
-class DQNAgent:
+class Model():
     def __init__(self, state_size, action_size):
-        self.state_size = state_size
-        self.action_size = action_size
-        
-        self.memory = deque(maxlen=2000)
-        # q learning params
-        self.gamma = 0.95
-
-        self.epsilon = 0.999
-        self.epsilon_decay = 0.9995
-        self.epsilon_min = 0.05
-
-        # neural network params
+        """
+        create sequential model
+        """
+        # Parameters
         self.learning_rate = 0.0001
 
-        self.model = self._build_model()
+        self.state_size = state_size
+        self.action_size = action_size
+
+        self.model = Sequential()
+
+        # input layer
+        self.model.add(Dense(64, input_dim = self.state_size, activation='relu'))
+        
+        #hidden layer 1
+        self.model.add(Dense(128, activation='relu'))
+        
+        #hidden layer 2
+        self.model.add(Dense(32, activation='relu'))
+        
+        #output layer
+        self.model.add(Dense(self.action_size, activation='linear'))
+
+        self.model.compile(loss="mse", optimizer=Adam(learning_rate = self.learning_rate))
+
+    def summary(self):
+        return self.model.summary()
+
+class DQNAgent():
+    def __init__(self, state_size, action_size, epsilon):
+        self.state_size = state_size
+        self.action_size = action_size
+                
+        # Q-Learning parameters
+        self.gamma = 0.95
+        self.epsilon_decay = 0.9995
+        self.epsilon_min = 0.05
+        self.memory = deque(maxlen=2000)
+        self.epsilon = epsilon
+
+        # other parameters
+        self.batch_size = 32
+        self.max_str = '00000'
+
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_weights/" 
+
+        if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+        # create neural network model
+        self.model = Model(state_size, action_size)
         self.model.summary()
-
-    def get_epsilon(self):
-        return self.epsilon
-
-    def _build_model(self):
-        model = Sequential()
-
-        model.add(Dense(64, input_dim = self.state_size, activation='relu'))
-        model.add(Dense(128, activation='relu'))
-        model.add(Dense(32, activation='relu'))
-        model.add(Dense(self.action_size, activation='linear'))
-
-        model.compile(loss="mse", optimizer=Adam(learning_rate = self.learning_rate))
-        # model.compile(loss="mse", optimizer=Adam(learning_rate = self.learning_rate), run_eagerly=True)
-        return model
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
@@ -107,6 +131,9 @@ class DQNAgent:
         return np.argmax(act_values[0])        
 
     def replay(self, batch_size):
+        if len(self.memory) <batch_size:
+            return
+        
         minibatch = random.sample(self.memory, batch_size)
 
         for state, action, reward, next_state, done in minibatch:
@@ -128,100 +155,103 @@ class DQNAgent:
     def save(self, name):
         self.model.save_weights(name)
 
+    def load_latest_model(self):
+        dir_list = os.listdir(self.output_dir)
+        
+        if dir_list:
+            weights = []
+            for fn in dir_list:
+                weights.append(int(fn[8:13]))
+
+            max_num = max(weights)
+            self.max_str = f'{max_num:05d}'
+            filename = "weights_"+self.max_str+".hdf5"
+            self.load(self.output_dir + filename)
+            
+            print("[Agent] {} file has loaded.".format(filename))
+
+
+class RL():
+    def __init__(self):
+        self.n_episodes = 10_000
+        self.n_steps = 300
+
+        self.env = gym.make('LocalPlannerWorld-v1')
+        self.print_env()
+
+        self.feedback = Feedback()
+        
+        epsilon = self.latest_feedback()["epsilon"]
+        self.agent = DQNAgent(self.state_size(), self.action_size(), epsilon)
+        self.agent.load_latest_model()
+
+    def action_size(self):
+        """
+        action space:[move forward, turn left, turn right]
+        """
+        return self.env.action_space.n
+
+    def state_size(self):
+        """
+        state space: [x,y, theta]
+        """
+        return env.observation_space.shape[0]
+
+    def latest_feedback(self):
+        """
+        get latest feedback
+        """
+        return self.feedback.params_arr[-1]
+
+    def print_env(self):
+        print(f"state size:{state_size} - action size:{action_size}")
+
+    def draw_cumulative_rewards(self, data):
+        test_data = data[:20100][::2]
+        # print("cumulated rewards: {}".format(data[-200]))
+        plt.xlabel("Episode")
+        plt.ylabel("Cumulative Reward")
+        plt.plot(moving_average(test_data, 500))
+        plt.show()
+
+    def learning_phase(self):
+        done = False
+
+        for e in range(self.n_episodes):
+            state = self.env.reset()
+            state = np.reshape(state, [1, self.state_size])
+
+            cumulated_reward = 0.0
+            cumulated_rewards = []
+
+            for time in range(self.n_steps):
+                # env.render()
+                action = agent.act(state)
+                next_state, reward, done, _ = env.step(action)
+                cumulated_reward+= reward
+                next_state = np.reshape(next_state, [1, state_size])
+                agent.remember(state, action, reward, next_state, done)
+                state = next_state
+
+                if done:
+                    print("episode: {}/{}, score: {}, e:{:2}".format(e, self.n_episodes, time, agent.epsilon))
+                    break
+                        
+            cumulated_rewards.append(cumulated_reward)
+
+            if e % 50 == 0:
+                self.agent.save(self.agent.output_dir + "weights_"+"{:05d}".format(int(self.max_str)+e) + ".hdf5")
+
+                params={
+                    "cumulated_rewards": cumulated_rewards,
+                    "epsilon": self.agent.epsilon
+                }
+                self.feedback.save(params)
+                cumulated_rewards = []
+
+        env.close()
+
 if __name__ == '__main__':
     rospy.init_node('DQN_Agent', anonymous=True, log_level=rospy.WARN)
-
-    env = gym.make('LocalPlannerWorld-v1')
-
-    # Set parameters
-    output_dir="../model_output4/"
-
-    feedback = Feedback()
-    log_values = feedback.log_values['cumulated_reward']
-    goal_reached_episode = [i for i in log_values if i>=0]
-    print("\n\n************************************\n\ntoplam episode:{} Hedefe ulaşmiş episode:{} \n\n************************************\n\n".format(len(log_values), len(goal_reached_episode)))
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    # states: [x,y, theta]
-    state_size = env.observation_space.shape[0]
-    
-    # actions:[move forward, turn left, turn right]
-    action_size = env.action_space.n
-
-    print(f"state size: {state_size}")
-    print(f"action size: {action_size}")
-
-    agent = DQNAgent(state_size, action_size)
-
-    agent.epsilon = feedback.log_values['last_epsilon']
-
-    path = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_output4/"
-    dir_list = os.listdir(path)
-
-    max_str = '00000'
-    if dir_list:
-        weights = []
-        for fn in dir_list:
-            weights.append(int(fn[8:13]))
-
-        max_num = max(weights)
-        max_str = f'{max_num:05d}'
-    
-        filename = "weights_"+max_str+".hdf5"
-        filename = "weights_"+"10050"+".hdf5" # silmeyi unutma
-        print("[Agent] This file will be loaded. filename: {}".format(filename))
-        agent.load(path + filename)
-
-
-    batch_size = 32
-
-    done = False
-    n_episodes = 10_000
-
-    cumulated_rewards = feedback.log_values['cumulated_reward']
-    test_data = cumulated_rewards[:20100][::2]
-    # print("cumulated rewards: {}".format(cumulated_rewards[-200]))
-    plt.xlabel("Episode")
-    plt.ylabel("Cumulative Reward")
-    plt.plot(moving_average(test_data, 500))
-    plt.show()
-
-    # for e in range(n_episodes):
-    #     state = env.reset()
-    #     state = np.reshape(state, [1, state_size])
-        
-    #     cumulated_reward = 0.0
-        
-    #     for time in range(300):
-
-    #         # env.render()
-    #         action = agent.act(state)
-
-    #         next_state, reward, done, _ = env.step(action)
-            
-    #         cumulated_reward+= reward
-            
-    #         next_state = np.reshape(next_state, [1, state_size])
-
-    #         agent.remember(state, action, reward, next_state, done)
-
-    #         state = next_state
-
-    #         if done:
-    #             print("episode: {}/{}, score: {}, e:{:2}".format(e, n_episodes, time, agent.epsilon))
-    #             break
-        
-    #     cumulated_rewards.append(cumulated_reward)
-    #     print("cumulated_rewards: {}".format(cumulated_rewards[-100:]))
-        
-    #     # save to file
-    #     feedback.save(cumulated_reward, agent.get_epsilon()) 
-
-    #     if len(agent.memory) >batch_size:
-    #         agent.replay(batch_size)
-
-    #     if e % 50 == 0:
-    #         agent.save(output_dir + "weights_"+"{:05d}".format(int(max_str)+e) + ".hdf5")    
-    env.close()
+    rl = RL()
+    rl.learning_phase()

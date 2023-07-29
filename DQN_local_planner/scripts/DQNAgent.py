@@ -15,7 +15,7 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.callbacks import Callback
 from keras import backend as k
-import env2
+import env3
 import rospy
 import rospkg
 from utils import moving_average
@@ -30,7 +30,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "model4.pkl"
+        self.filename = "model5.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -176,7 +176,7 @@ class RL():
         self.n_episodes = 10_000
         self.n_steps = 300
 
-        self.env = gym.make('LocalPlannerWorld-v1')
+        self.env = gym.make('LocalPlannerWorld-v4')
         self.print_env()
 
         self.feedback = Feedback()

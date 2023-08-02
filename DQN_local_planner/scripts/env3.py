@@ -23,7 +23,7 @@ timestep_limit_per_episode = 100000 # Can be any Value
 
 register(
         id='LocalPlannerWorld-v4',
-        entry_point='env2:LocalPlannerWorld',
+        entry_point='env3:LocalPlannerWorld',
         max_episode_steps=timestep_limit_per_episode,
     )
 
@@ -68,7 +68,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.odom = self._check_odom_ready()
         self.scan = self._check_laser_scan_ready()
         
-        rospy.wait_for_service("/gazebo/set_model_state")
+        # rospy.wait_for_service("/gazebo/set_model_state")
 
         super(LocalPlannerWorld, self).__init__()
 
@@ -103,10 +103,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.nsteps_done = False
         self.is_collision_detected=False
 
-
         # Only for Visualization
         goal_x, goal_y =self.global_plan.poses[-1].pose.position.x, self.global_plan.poses[-1].pose.position.y
-        self.set_model_state("Goal_Point",goal_x, goal_x, goal_y, goal_y)        
+        # self.set_model_state("Goal_Point",goal_x, goal_x, goal_y, goal_y)        
 
         # This is necessary to give the laser sensors to refresh in the new reseted position.
         rospy.logwarn("Waiting...")
@@ -122,8 +121,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         
         rospy.logdebug("Start Set Action ==>"+str(action))
 
-        _linear_speed = self.action_spaces[action][0]
-        _angular_speed = self.action_spaces[action][1]
+        _linear_speed = self.action_spaces_value[action][0]
+        _angular_speed = self.action_spaces_value[action][1]
 
         print(f'velocity x:{_linear_speed} z:{_angular_speed}')
         self.move_base(_linear_speed, _angular_speed)
@@ -230,19 +229,25 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
                 print("Service call failed: %s"%e)
 
     
-    def get_global_path(self, goal:Pose):
+    def get_global_path(self, goal:PoseStamped):
         """
         return nav_msgs/Path
         """
-        rospy.wait_for_service('move_base/global_plan')
+        rospy.wait_for_service('/move_base/make_plan')
         try:
-            get_plan = rospy.ServiceProxy('move_base/global_plan', GetPlan)
+            get_plan = rospy.ServiceProxy('/move_base/make_plan', GetPlan)
             req = GetPlanRequest()
-            req.start.header = self.odom.header
-            req.start.pose = self.odom.pose.pose
-            req.goal.header = self.odom.header
-            req.goal.pose = goal
+
+            start = PoseStamped()
+            start.header.frame_id = "map"
+            start.pose = self.odom.pose.pose            
+            goal_msg = PoseStamped()
+            goal_msg.header.frame_id = "map"
+            goal_msg.pose = goal.pose
+            req.start = start
+            req.goal = goal_msg
             res = get_plan(req)
+
             return res.plan
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
@@ -250,6 +255,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(np.random.uniform(2, 5), np.random.uniform(-4, 4), 0.0)  
+        goal.pose.position = Point(np.random.uniform(26.5, 30), np.random.uniform(-6, 2), 0.0)  
         print(f"goal position:{goal}")
         return goal

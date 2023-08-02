@@ -18,7 +18,7 @@ def create_action_spaces(max_vel_x=1.5, max_vel_z=0.78, sample_size_x=10, sample
     # is_zero = False
     for i,x in enumerate(samples_x):
         for j,z in enumerate(samples_z):
-            action_space[idx] = (x,z)
+            action_spaces[idx] = (x,z)
             idx+=1
             # if x == 0.0 and z == 0.0:
             #     is_zero = True

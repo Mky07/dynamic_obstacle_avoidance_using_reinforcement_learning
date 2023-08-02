@@ -58,6 +58,10 @@ class Feedback():
         """
         load parameters
         """
+        if not os.path.exists(self.file_path):
+            with open(self.file_path, 'wb') as f:
+                pickle.dump(self.params, f)
+
         with open(self.file_path, 'rb') as f:
             self.params = pickle.load(f)
 
@@ -96,6 +100,9 @@ class Model():
     def summary(self):
         return self.model.summary()
 
+    def save_weights(self, name):
+        self.model.save_weights(name)
+
 class DQNAgent():
     def __init__(self, state_size, action_size, epsilon):
         self.state_size = state_size
@@ -114,11 +121,11 @@ class DQNAgent():
 
         self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/model_weights/" 
 
-        if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+        if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir)
 
         # create neural network model
-        self.model = Model(state_size, action_size)
+        self.model = Model(self.state_size, self.action_size)
         self.model.summary()
 
     def remember(self, state, action, reward, next_state, done):
@@ -195,16 +202,16 @@ class RL():
         """
         state space: [x,y, theta]
         """
-        return env.observation_space.shape[0]
+        return self.env.observation_space.shape[0]
 
     def latest_feedback(self):
         """
         get latest feedback
         """
-        return self.feedback.params_arr[-1]
+        return self.feedback.params
 
     def print_env(self):
-        print(f"state size:{state_size} - action size:{action_size}")
+        print(f"state size:{self.state_size()} - action size:{self.action_size()}")
 
     def draw_cumulative_rewards(self, data):
         test_data = data[:20100][::2]
@@ -219,28 +226,28 @@ class RL():
 
         for e in range(self.n_episodes):
             state = self.env.reset()
-            state = np.reshape(state, [1, self.state_size])
+            state = np.reshape(state, [1, self.state_size()])
 
             cumulated_reward = 0.0
             cumulated_rewards = []
 
             for time in range(self.n_steps):
                 # env.render()
-                action = agent.act(state)
-                next_state, reward, done, _ = env.step(action)
+                action = self.agent.act(state)
+                next_state, reward, done, _ = self.env.step(action)
                 cumulated_reward+= reward
-                next_state = np.reshape(next_state, [1, state_size])
-                agent.remember(state, action, reward, next_state, done)
+                next_state = np.reshape(next_state, [1, self.state_size()])
+                self.agent.remember(state, action, reward, next_state, done)
                 state = next_state
 
                 if done:
-                    print("episode: {}/{}, score: {}, e:{:2}".format(e, self.n_episodes, time, agent.epsilon))
+                    print("episode: {}/{}, score: {}, e:{:2}".format(e, self.n_episodes, time, self.agent.epsilon))
                     break
                         
             cumulated_rewards.append(cumulated_reward)
 
             if e % 50 == 0:
-                self.agent.save(self.agent.output_dir + "weights_"+"{:05d}".format(int(self.max_str)+e) + ".hdf5")
+                self.agent.save(self.agent.output_dir + "weights_"+"{:05d}".format(int(self.agent.max_str)+e) + ".hdf5")
 
                 params={
                     "cumulated_rewards": cumulated_rewards,
@@ -249,7 +256,7 @@ class RL():
                 self.feedback.save(params)
                 cumulated_rewards = []
 
-        env.close()
+        self.env.close()
 
 if __name__ == '__main__':
     rospy.init_node('DQN_Agent', anonymous=True, log_level=rospy.WARN)

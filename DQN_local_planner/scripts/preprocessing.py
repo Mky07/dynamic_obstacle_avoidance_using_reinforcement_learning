@@ -24,7 +24,7 @@ class ScanPreProcessing():
         return samples
 
     def max_filter(self, arr):
-        return [min(x, self.max_value) for x in arr]
+        return [min(x, self.max_range) for x in arr]
 
     def round_filter(self, arr):
         return [round(x, 1) for x in arr]
@@ -47,11 +47,12 @@ class RobotPreProcessing():
         find closest path pose wrt to robot
         Note: path and robot_pose should be the same frame
         """
+
         closed_pose = Pose()
         min_dist = float('inf')
         closed_point_idx = 0
         for i, pose in enumerate(path.poses):
-            dist = sqrt((pose.pose.position.x - robot_x)**2 + (pose.pose.position.y - robot_y)**2)
+            dist = sqrt((pose.pose.position.x - robot_pose.position.x)**2 + (pose.pose.position.y - robot_pose.position.y)**2)
             if dist < min_dist:
                 min_dist = dist
                 closed_point_idx = i

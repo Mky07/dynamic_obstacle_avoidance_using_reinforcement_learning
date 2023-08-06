@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+"""
+Yapilacaklar
+* [+] scan verisinin ilk değerlerini en sona ekle
+* [+] robot açisinin limitini kaldir
+* [+] aci arttikca negatif ödül ver.
+* [+] aksiyon uzaya (0,0) ve (0, theta) açilarini ekle
+"""
+
 import rospy
 import time
 import numpy as np
@@ -30,24 +38,27 @@ register(
 
 class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
-        self.nsteps = 300
-        n_scan_states = 400
-        max_range = 30 #m
-        max_dist = 3 # m
-        self.look_ahead_dist = 3 #m
+        self.nsteps = 9999
+        self.scan_ranges = 360
+        self.scan_padding = 25
+        n_scan_states = self.scan_ranges + self.scan_padding
 
+        max_range = 30 #m
+        max_dist = 2 # m
+        self.look_ahead_dist = 3 #m
+        self.closed_obstacle_dist = 0.2
         # Limits
         self.goal_th = 0.2
         self.dist_th = max_dist - 0.1
-        self.angle_th = 2.4434609528 # 90 deg
+        # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
-        self.action_spaces_value = create_action_spaces()
+        self.action_spaces_value = create_action_spaces(1.0, 0.4, 20, 10)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
         # state spaces
-        self.scan_preprocessing =ScanPreProcessing(n_scan_states,max_range)
+        self.scan_preprocessing =ScanPreProcessing(n_scan_states,max_range, self.scan_padding)
         self.robot_preprocessing = RobotPreProcessing(self.look_ahead_dist)
 
         s1_l = np.full(1, -max_dist)
@@ -68,6 +79,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.odom = self._check_odom_ready()
         self.scan = self._check_laser_scan_ready()
         
+        print(f"scan range :{len(self.scan.ranges)}")
         # rospy.wait_for_service("/gazebo/set_model_state")
 
         super(LocalPlannerWorld, self).__init__()
@@ -86,11 +98,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         of an episode.
         :return:
         """
+        # This is necessary to give the laser sensors to refresh in the new reseted position.
+        time.sleep(1.5)
 
-        # create global plan
-        self.goal = self.create_random_goal()
-        self.global_plan = self.get_global_path(self.goal)
-        
         # For Info Purposes
         self.cumulated_reward = 0.0
         self.cumulated_steps = 0.0
@@ -98,19 +108,20 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # Set to false Done, because its calculated asyncronously
         self._episode_done = False
         self.is_dist_exceed = False
-        self.is_angle_exceed = False
+        # self.is_angle_exceed = False
         self.is_goal_reached = False
         self.nsteps_done = False
         self.is_collision_detected=False
 
-        # Only for Visualization
-        goal_x, goal_y =self.global_plan.poses[-1].pose.position.x, self.global_plan.poses[-1].pose.position.y
-        # self.set_model_state("Goal_Point",goal_x, goal_x, goal_y, goal_y)        
+        # create global plan
+        self.global_plan = Path()
+        while len(self.global_plan.poses) == 0:
+            self.goal = self.create_random_goal()
+            self.global_plan = self.get_global_path(self.goal)
 
-        # This is necessary to give the laser sensors to refresh in the new reseted position.
-        rospy.logwarn("Waiting...")
-        time.sleep(0.5)
-        rospy.logwarn("END Waiting...")        
+        # Only for Visualization
+        # goal_x, goal_y =self.global_plan.poses[-1].pose.position.x, self.global_plan.poses[-1].pose.position.y
+        # self.set_model_state("Goal_Point",goal_x, goal_x, goal_y, goal_y)        
 
     def _set_action(self, action):
         """
@@ -156,14 +167,13 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self._episode_done = False
 
         # collision detected
-        if min(observations[2:])<= 0.3: # 30cm
+        if min(observations[2:])<= self.closed_obstacle_dist:
             print("min scan done")
             self.is_collision_detected = True
             self._episode_done = True
 
         # goal has reached        
-        odom = self.get_odom()        
-        dist = sqrt((self.goal.pose.position.x-odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-odom.pose.pose.position.y)**2)
+        dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
         
         if dist< self.goal_th:
             print("goal has reached")
@@ -177,10 +187,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             self._episode_done = True
 
         # robot acısı çok fazla ise işlemi sonlandır.
-        if abs(observations[1]) > self.angle_th:
-            print("Angle has exceeded")
-            self.is_angle_exceed = True
-            self._episode_done = True
+        # if abs(observations[1]) > self.angle_th:
+        #     print("Angle has exceeded")
+        #     self.is_angle_exceed = True
+        #     self._episode_done = True
 
 
         if self.cumulated_steps == self.nsteps-1:
@@ -193,17 +203,38 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def _compute_reward(self, observations, done):
         reward = 0
 
-        if self.is_angle_exceed:
-            reward-= 40
+        # en yakın noktadan çok uzaktaysa
+        reward -= observations[0] * 0.02
+        
+        # if observations[0] == 0:
+        #     reward += 0.5 
+        # elif observations[0] == 1:
+        #     reward += 0.3 
+        # else:
+        #     reward+= 0.3/observations[0]
+
+        # look ahead e göre robot açısı az ise ödül ver
+        reward-= abs(observations[1]) * 0.05
+        
+        # if observations[1] == 0:
+        #     reward += 0.2 
+        # elif abs(observations[1]) == 1:
+        #     reward += 0.1 
+        # else:
+        #     reward+= 0.1/abs(observations[1])
+
+        # if self.is_angle_exceed:
+        #     reward-= 40
+        
         if self.is_collision_detected:
-            reward-= 100
+            reward-= 150
         if self.is_dist_exceed:
-            reward-= 50
+            reward-= 70
         if self.is_goal_reached:
             reward+= 200
 
         if not done:
-            reward+= 0.1
+            reward-= 0.03
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
@@ -228,7 +259,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
 
-    
     def get_global_path(self, goal:PoseStamped):
         """
         return nav_msgs/Path
@@ -255,6 +285,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(np.random.uniform(26.5, 30), np.random.uniform(-6, 2), 0.0)  
+        goal.pose.position = Point(np.random.uniform(-10, 10), np.random.uniform(-10, 10), 0.0)  
         print(f"goal position:{goal}")
         return goal

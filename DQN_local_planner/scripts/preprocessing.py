@@ -7,14 +7,19 @@ from math import sqrt, atan2
 
 
 class ScanPreProcessing():
-    def __init__(self, sample_size = 400, max_range = 20):
+    def __init__(self, sample_size = 400, max_range = 20, padding_size=50):
         self.sample_size = sample_size
         self.max_range = max_range
+        self.padding_size = padding_size
 
     def downsample(self, scan:LaserScan):
         """
         downsample
         """
+
+        if self.sample_size == -1:
+            return scan.ranges
+            
         increment = len(scan.ranges)/self.sample_size
         idx = increment/2
         samples = []
@@ -23,6 +28,20 @@ class ScanPreProcessing():
             idx+=increment
         return samples
 
+    def padding(self, scan:LaserScan):
+        res = LaserScan()
+        res.header = scan.header
+        res.angle_min = scan.angle_min
+        res.angle_max = scan.angle_max
+        res.angle_increment = scan.angle_increment
+        res.time_increment = scan.time_increment
+        res.scan_time = scan.scan_time
+        res.range_min = scan.range_min
+        res.range_max = scan.range_max
+        res.ranges = scan.ranges + scan.ranges[:self.padding_size] 
+        res.intensities = scan.intensities + scan.intensities[:self.padding_size]
+        return res
+
     def max_filter(self, arr):
         return [min(x, self.max_range) for x in arr]
 
@@ -30,7 +49,8 @@ class ScanPreProcessing():
         return [round(x, 1) for x in arr]
 
     def get_states(self, scan:LaserScan):
-        samples = self.downsample(scan)
+        extended_scan = self.padding(scan)
+        samples = self.downsample(extended_scan)
         samples = self.max_filter(samples)
         samples = self.round_filter(samples)
         return samples

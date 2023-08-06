@@ -15,7 +15,7 @@ from keras.layers import Dense, Conv1D, MaxPooling1D, Flatten, Dropout, Input, c
 from keras.optimizers import Adam
 from keras.callbacks import Callback
 from keras import backend as k
-import env3
+import environment
 import rospy
 import rospkg
 from utils import moving_average
@@ -152,21 +152,21 @@ class NNModel():
         other_inputs = Input(shape=(self.state_size - scan_input_size,))
         
         # the first branch operates on the first input
-        x = Conv1D(filters=96, kernel_size=11, stride=4, padding= "same", activation='relu')(scan_inputs)
-        x = MaxPooling1D(pool_size=(3,), stride=2, padding="same")(x)
-        x = Conv1D(filters=256, kernel_size=5, stride=1, padding= "same", activation='relu')(x)
-        x = MaxPooling1D(pool_size=(3,), stride=2, padding="same")(x)
-        x = Conv1D(filters=384, kernel_size=3, stride=1, padding= "same", activation='relu')(x)
-        x = Conv1D(filters=384, kernel_size=3, stride=1, padding= "same", activation='relu')(x)
-        x = Conv1D(filters=256, kernel_size=3, stride=1, padding= "same", activation='relu')(x)
-        x = MaxPooling1D(pool_size=(3,), stride=2, padding="same")(x)
+        x = Conv1D(filters=96, kernel_size=11, strides=4, padding= "same", activation='relu')(scan_inputs)
+        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
+        x = Conv1D(filters=256, kernel_size=5, strides=1, padding= "same", activation='relu')(x)
+        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
+        x = Conv1D(filters=384, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
+        x = Conv1D(filters=384, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
+        x = Conv1D(filters=256, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
+        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
         x = Dropout(0.5)(x)
+        x = Flatten()(x)
         x = Model(inputs=scan_inputs, outputs=x)
 
-        # x = Flatten()(x)
         
         # the second branch opreates on the second input
-        y = Dense(len(other_inputs), activation="relu")(other_inputs)
+        y = Dense(2, activation="relu")(other_inputs)
         # y = Dense(16, activation="relu")(y)
         y = Model(inputs=other_inputs, outputs=y)
         
@@ -177,7 +177,7 @@ class NNModel():
         
         # combined outputs
         z = Dense(4096, activation="relu")(combined)
-        x = Dropout(0.5)(z)
+        z = Dropout(0.5)(z)
         z = Dense(4096, activation="relu")(z)
         #https://ai.stackexchange.com/questions/34589/using-softmax-non-linear-vs-linear-activation-function-in-deep-reinforceme#:~:text=The%20normal%20use%20case%20for,are%20estimates%20for%20some%20measurement.
         z = Dense(self.action_size, activation="linear")(z)
@@ -202,7 +202,7 @@ class NNModel():
         self.model.load_weights(name)
 
     def predict(self, state):
-        print(f"predict state:{state}")
+        # print(f"predict state:{state}")
         return self.model.predict(state)
 
     def fit(self, state, target_f, epochs=1, verbose=0, callbacks=ClearMemory()):

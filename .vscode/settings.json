@@ -1,3 +1,3 @@
 {
-    "cmake.sourceDirectory": "${workspaceFolder}/grid_world"
+    "cmake.sourceDirectory": "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/model_to_planner"
 }

@@ -31,7 +31,7 @@ timestep_limit_per_episode = 100000 # Can be any Value
 
 register(
         id='LocalPlannerWorld-v4',
-        entry_point='env3:LocalPlannerWorld',
+        entry_point='environment:LocalPlannerWorld',
         max_episode_steps=timestep_limit_per_episode,
     )
 
@@ -117,7 +117,16 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.global_plan = Path()
         while len(self.global_plan.poses) == 0:
             self.goal = self.create_random_goal()
+
             self.global_plan = self.get_global_path(self.goal)
+
+        # self.goal = PoseStamped()
+        # self.goal.pose.position.x = 0.0
+        # self.goal.pose.position.y = -1.0
+        # self.goal.pose.orientation.w = 1.0
+        # self.goal.header.frame_id = "map"
+
+        # self.global_plan = self.get_global_path(self.goal)
 
         # Only for Visualization
         # goal_x, goal_y =self.global_plan.poses[-1].pose.position.x, self.global_plan.poses[-1].pose.position.y
@@ -135,7 +144,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         _linear_speed = self.action_spaces_value[action][0]
         _angular_speed = self.action_spaces_value[action][1]
 
-        print(f'velocity x:{_linear_speed} z:{_angular_speed}')
+        print(f'actions x:{_linear_speed} z:{_angular_speed}')
         self.move_base(_linear_speed, _angular_speed)
 
         # We tell TurtleBot2 the linear and angular speed to set to execute
@@ -204,8 +213,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         reward = 0
 
         # en yakın noktadan çok uzaktaysa
-        reward -= observations[0] * 0.02
-        
+        reward -= observations[0] * 0.04
+        # reward -= observations[0] * 0.02
+       
         # if observations[0] == 0:
         #     reward += 0.5 
         # elif observations[0] == 1:
@@ -214,7 +224,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         #     reward+= 0.3/observations[0]
 
         # look ahead e göre robot açısı az ise ödül ver
-        reward-= abs(observations[1]) * 0.05
+        reward-= abs(observations[1]) * 0.05 # 0.05
         
         # if observations[1] == 0:
         #     reward += 0.2 
@@ -285,6 +295,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(np.random.uniform(-10, 10), np.random.uniform(-10, 10), 0.0)  
+        goal.pose.position = Point(np.random.uniform(-1.5, 1.5), np.random.uniform(-1.5, 1.5), 0.0)  
         print(f"goal position:{goal}")
         return goal

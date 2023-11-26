@@ -38,13 +38,13 @@ register(
 
 class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
-        self.nsteps = 9999
+        self.nsteps = 300
         self.scan_ranges = 360
         self.scan_padding = 25
         n_scan_states = self.scan_ranges + self.scan_padding
 
         max_range = 30 #m
-        max_dist = 2 # m
+        max_dist = 5 # m
         self.look_ahead_dist = 3 #m
         self.closed_obstacle_dist = 0.2
         # Limits
@@ -119,6 +119,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             self.goal = self.create_random_goal()
 
             self.global_plan = self.get_global_path(self.goal)
+            # rospy.sleep(0.1)
 
         # self.goal = PoseStamped()
         # self.goal.pose.position.x = 0.0
@@ -295,6 +296,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(np.random.uniform(-1.5, 1.5), np.random.uniform(-1.5, 1.5), 0.0)  
+        goal.pose.position = Point(np.random.uniform(-3.0, 3.0), np.random.uniform(-3.0, 3.0), 0.0)  
         print(f"goal position:{goal}")
         return goal
+
+
+## RGBD kamerayı kapat. Sim i yavaşlatıyor.
+## 

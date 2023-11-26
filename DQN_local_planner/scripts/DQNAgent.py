@@ -215,7 +215,7 @@ class DQNAgent():
         # Q-Learning parameters
         self.gamma = 0.95
         self.epsilon_decay = 0.9995
-        self.epsilon_min = 0.05
+        self.epsilon_min = 0.1 # default 0.05
         self.memory = deque(maxlen=2000)
         self.epsilon = epsilon
 
@@ -325,11 +325,12 @@ class RL():
 
     def draw_cumulative_rewards(self, data):
         print("cumulated rewards: {}".format(data[-200]))
-        test_data = data[:10000][::2]
+        test_data = data[:3000][::2]
         plt.xlabel("Episode")
         plt.ylabel("Cumulative Reward")
-        # plt.plot(moving_average(test_data, 500))
-        plt.plot(moving_average(data, 300))
+        plt.plot(moving_average(test_data, 500))
+        plt.show()
+        plt.plot(moving_average(data, 500))
         plt.show()
 
     def learning_phase(self):

@@ -1,6 +1,8 @@
+import math
+
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Path
-from geometry_msgs.msg import Pose, Point
+from geometry_msgs.msg import Pose, Point, PointStamped
 
 from tf.transformations import euler_from_quaternion
 from math import sqrt, atan2
@@ -11,6 +13,8 @@ class ScanPreProcessing():
         self.sample_size = sample_size
         self.max_range = max_range
         self.padding_size = padding_size
+
+        self.scan_info = LaserScan()
 
     def downsample(self, scan:LaserScan):
         """
@@ -27,6 +31,9 @@ class ScanPreProcessing():
             samples.append(scan.ranges[int(idx)])
             idx+=increment
         return samples
+
+    def fill_scan_info(self,scan):
+        self.scan_info = scan
 
     def padding(self, scan:LaserScan):
         res = LaserScan()
@@ -45,15 +52,48 @@ class ScanPreProcessing():
     def max_filter(self, arr):
         return [min(x, self.max_range) for x in arr]
 
+    def extended_max_filter(self, arr):
+        # süreksizliği ortadan kaldır.
+        rad45 = 0.7853981634
+        rad135 = 2.3561944902
+        rad225 = 3.926990817
+        rad315 = 5.4977871438
+        rad360 = 6.2831853072
+        front_max_dist = 10
+        side_max_dist = 3
+        back_max_dist = 1
+        
+        scan = self.scan_info
+
+        angle_padding = - scan.angle_min
+
+        arr = []
+        
+        for i, r in enumerate(scan.ranges):
+            # calculate angle
+            angle = scan.angle_min + scan.angle_increment * i
+            angle+=angle_padding
+
+            if (rad45 < angle and angle < rad135) or (rad225 < angle and angle < rad315):
+                arr.append(min(r, side_max_dist))
+            elif rad135 < angle and angle < rad225:
+                arr.append(min(r, back_max_dist))
+            else:
+                arr.append(min(r, front_max_dist))
+        return arr
+        
     def round_filter(self, arr):
         return [round(x, 1) for x in arr]
 
     def get_states(self, scan:LaserScan):
         extended_scan = self.padding(scan)
+        self.fill_scan_info(extended_scan)
         samples = self.downsample(extended_scan)
-        samples = self.max_filter(samples)
+        samples = self.extended_max_filter(samples)
+        # samples = self.max_filter(samples)
         samples = self.round_filter(samples)
         return samples
+
 
 class RobotPreProcessing():
     def __init__(self, look_ahead_dist):

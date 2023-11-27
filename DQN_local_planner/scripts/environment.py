@@ -44,7 +44,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         n_scan_states = self.scan_ranges + self.scan_padding
 
         max_range = 30 #m
-        max_dist = 5 # m
+        max_dist = 3 # m
         self.look_ahead_dist = 3 #m
         self.closed_obstacle_dist = 0.2
         # Limits
@@ -53,7 +53,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
-        self.action_spaces_value = create_action_spaces(1.0, 0.4, 20, 10)
+        self.action_spaces_value = create_action_spaces(1.0, 0.4, 10, 10)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
@@ -167,6 +167,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         scan_state = self.scan_preprocessing.get_states(self.scan)
         min_dist, theta = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
 
+        # disable scan state [max_range, max_range ...]
+        scan_state= [30]*len(scan_state)
+        
         self.observations = [min_dist, theta] + scan_state
 
         print("observations: {}".format(self.observations))
@@ -214,8 +217,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         reward = 0
 
         # en yakın noktadan çok uzaktaysa
-        reward -= observations[0] * 0.04
-        # reward -= observations[0] * 0.02
+        reward -= observations[0] * 0.1 # 0.04
        
         # if observations[0] == 0:
         #     reward += 0.5 
@@ -225,7 +227,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         #     reward+= 0.3/observations[0]
 
         # look ahead e göre robot açısı az ise ödül ver
-        reward-= abs(observations[1]) * 0.05 # 0.05
+        reward-= abs(observations[1]) * 0.08 # 0.05
         
         # if observations[1] == 0:
         #     reward += 0.2 
@@ -241,8 +243,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             reward-= 150
         if self.is_dist_exceed:
             reward-= 70
-        if self.is_goal_reached:
-            reward+= 200
+        # if self.is_goal_reached:
+        #     reward+= 200
 
         if not done:
             reward-= 0.03
@@ -296,7 +298,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(np.random.uniform(-3.0, 3.0), np.random.uniform(-3.0, 3.0), 0.0)  
+        goal.pose.position = Point(np.random.uniform(-5.0, 5.0), np.random.uniform(-16.0, -6.0), 0.0)  
         print(f"goal position:{goal}")
         return goal
 

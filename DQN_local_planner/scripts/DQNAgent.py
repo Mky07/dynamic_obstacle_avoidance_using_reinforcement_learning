@@ -30,7 +30,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "alexnet_model.pkl"
+        self.filename = "m2.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -179,7 +179,8 @@ class NNModel():
         z = Dropout(0.5)(z)
         z = Dense(64, activation="relu")(z)
         #https://ai.stackexchange.com/questions/34589/using-softmax-non-linear-vs-linear-activation-function-in-deep-reinforceme#:~:text=The%20normal%20use%20case%20for,are%20estimates%20for%20some%20measurement.
-        z = Dense(self.action_size, activation="softmax")(z)
+        z = Dense(self.action_size, activation="linear")(z)
+        # z = Dense(self.action_size, activation="softmax")(z)
         
         # our model will accept the inputs of the two branches and
         # then output a single value
@@ -223,7 +224,7 @@ class DQNAgent():
         self.batch_size = 32
         self.max_str = '00000'
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/alexnet_model_weights/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/w2/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -294,7 +295,7 @@ class RL():
 
         self.feedback = Feedback()
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
-        self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
+        # self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
         
         epsilon = self.latest_feedback()["epsilon"]
         print(f'epsilon: {epsilon}')

@@ -215,8 +215,8 @@ class DQNAgent():
                 
         # Q-Learning parameters
         self.gamma = 0.95
-        self.epsilon_decay = 0.9995
-        self.epsilon_min = 0.1 # default 0.05
+        self.epsilon_decay = 0.99
+        self.epsilon_min = 0.08 # default 0.05
         self.memory = deque(maxlen=2000)
         self.epsilon = epsilon
 

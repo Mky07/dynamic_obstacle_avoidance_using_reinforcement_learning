@@ -298,6 +298,7 @@ class RL():
         self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
         
         epsilon = self.latest_feedback()["epsilon"]
+        epsilon = 0.5
         print(f'epsilon: {epsilon}')
         
         self.agent = DQNAgent(self.state_size(), self.action_size(), epsilon)

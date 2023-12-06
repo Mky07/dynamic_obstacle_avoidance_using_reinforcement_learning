@@ -31,7 +31,7 @@ def create_action_spaces(max_vel_x=1.5, max_vel_z=0.78, sample_size_x=10, sample
             action_spaces[idx] = (x,0.0)
             idx+=1
         for j,z in enumerate(samples_z):
-            if (x>=0.1 and z>=0.1) or (x==0 and z==0):
+            if (x>=0.1 and abs(z)>=0.1) or (x==0 and z==0):
                 action_spaces[idx] = (x,z)
                 idx+=1
     print("action spaces have created. {}".format(action_spaces))

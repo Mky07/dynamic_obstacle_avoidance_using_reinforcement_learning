@@ -38,14 +38,14 @@ register(
 
 class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
-        self.nsteps = 300
+        self.nsteps = 500
         self.scan_ranges = 360
         self.scan_padding = 25
         n_scan_states = self.scan_ranges + self.scan_padding
 
         max_range = 30 #m
         max_dist = 3 # m
-        self.look_ahead_dist = 3 #m
+        self.look_ahead_dist = 1.0 #m
         self.closed_obstacle_dist = 0.2
         # Limits
         self.goal_th = 0.2
@@ -246,8 +246,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # if self.is_goal_reached:
         #     reward+= 200
 
+        # time factor
         if not done:
-            reward-= 0.03
+            reward-= 0.05
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
@@ -298,7 +299,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(np.random.uniform(-5.0, 5.0), np.random.uniform(-16.0, -6.0), 0.0)  
+        goal.pose.position = Point(np.random.uniform(-10.0, 10.0), np.random.uniform(-20.0, 0.0), 0.0)  
         print(f"goal position:{goal}")
         return goal
 

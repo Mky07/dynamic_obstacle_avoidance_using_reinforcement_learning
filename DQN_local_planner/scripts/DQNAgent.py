@@ -30,7 +30,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "m2.pkl"
+        self.filename = "m4.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -121,6 +121,10 @@ class NNModel():
         x = Model(inputs=scan_inputs, outputs=x)
         
         # the second branch opreates on the second input
+
+        ####################################
+        ##### Spatial embedding ##
+        ####################################
         y = Dense(16, activation="relu")(other_inputs)
         # y = Dense(16, activation="relu")(y)
         y = Model(inputs=other_inputs, outputs=y)
@@ -166,7 +170,8 @@ class NNModel():
 
         # the second branch opreates on the second input
         y = Dense(2, activation="relu")(other_inputs)
-        # y = Dense(16, activation="relu")(y)
+        y = Dense(16, activation="relu")(y)
+        y = Dense(32, activation="relu")(y)
         y = Model(inputs=other_inputs, outputs=y)
         
         # combine the output of the two branches
@@ -179,7 +184,7 @@ class NNModel():
         z = Dropout(0.5)(z)
         z = Dense(64, activation="relu")(z)
         #https://ai.stackexchange.com/questions/34589/using-softmax-non-linear-vs-linear-activation-function-in-deep-reinforceme#:~:text=The%20normal%20use%20case%20for,are%20estimates%20for%20some%20measurement.
-        z = Dense(self.action_size, activation="linear")(z)
+        z = Dense(self.action_size, activation="softmax")(z)
         # z = Dense(self.action_size, activation="softmax")(z)
         
         # our model will accept the inputs of the two branches and
@@ -214,17 +219,17 @@ class DQNAgent():
         self.action_size = action_size
                 
         # Q-Learning parameters
-        self.gamma = 0.95
-        self.epsilon_decay = 0.997
+        self.gamma = 0.90
+        self.epsilon_decay = 0.99
         self.epsilon_min = 0.07 # default 0.05
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=5000)
         self.epsilon = epsilon
 
         # other parameters
         self.batch_size = 32
         self.max_str = '00000'
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/w2/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/w4/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -298,7 +303,6 @@ class RL():
         self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
         
         epsilon = self.latest_feedback()["epsilon"]
-        epsilon = 0.5
         print(f'epsilon: {epsilon}')
         
         self.agent = DQNAgent(self.state_size(), self.action_size(), epsilon)
@@ -329,7 +333,7 @@ class RL():
         print("cumulated rewards: {}".format(data[-200]))
         plt.xlabel("Episode")
         plt.ylabel("Cumulative Reward")
-        plt.plot(moving_average(data, 300))
+        plt.plot(moving_average(data, 500))
         plt.show()
 
     def learning_phase(self):

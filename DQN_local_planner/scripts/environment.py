@@ -14,12 +14,12 @@ import numpy as np
 from gym import spaces
 from openai_ros.robot_envs import turtlebot2_env
 from gym.envs.registration import register
-from geometry_msgs.msg import Point, Twist, Pose, PoseStamped
+from geometry_msgs.msg import Point, Twist, Pose, PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
 from gazebo_msgs.srv import *
 from gazebo_msgs.msg import ModelState
-from math import sqrt, atan2, pi, ceil
+from math import sqrt, atan2, pi, ceil, exp
 
 from nav_msgs.srv import GetPlan, GetPlanRequest, GetPlanResponse
 
@@ -49,7 +49,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.closed_obstacle_dist = 0.2
         # Limits
         self.goal_th = 0.2
-        self.dist_th = max_dist - 0.1
+        self.dist_th = 1
         # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
@@ -59,15 +59,15 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         
         # state spaces
         self.scan_preprocessing =ScanPreProcessing(n_scan_states,max_range, self.scan_padding)
-        self.robot_preprocessing = RobotPreProcessing(self.look_ahead_dist)
+        self.robot_preprocessing = RobotPreProcessing(self.look_ahead_dist, max_dist)
 
-        s1_l = np.full(1, -max_dist)
-        s2_l = np.full(1, -pi)
+        s1_l = np.full(1, 0)
+        s2_l = np.full(1, 0)
         s3_l = np.full(n_scan_states, 0.0)
 
-        s1_h = np.full(1, max_dist)
-        s2_h = np.full(1, pi)
-        s3_h = np.full(n_scan_states, max_range)
+        s1_h = np.full(1, 1)
+        s2_h = np.full(1, 1)
+        s3_h = np.full(n_scan_states, 1)
         
         high = np.concatenate((s1_h, s2_h, s3_h))
         low = np.concatenate((s1_l, s2_l, s3_l))
@@ -81,6 +81,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         
         print(f"scan range :{len(self.scan.ranges)}")
         # rospy.wait_for_service("/gazebo/set_model_state")
+
+        self._global_path_pub = rospy.Publisher("/mky_global_path", Path)
 
         super(LocalPlannerWorld, self).__init__()
 
@@ -115,11 +117,14 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         # create global plan
         self.global_plan = Path()
+        self.global_plan.header.frame_id ="map"
+        self.global_plan.header.stamp = rospy.Time.now()
+
         while len(self.global_plan.poses) == 0:
             self.goal = self.create_random_goal()
 
             self.global_plan = self.get_global_path(self.goal)
-            # rospy.sleep(0.1)
+
 
         # self.goal = PoseStamped()
         # self.goal.pose.position.x = 0.0
@@ -168,7 +173,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         min_dist, theta = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
 
         # disable scan state [max_range, max_range ...]
-        scan_state= [30]*len(scan_state)
+        scan_state= [1]*len(scan_state)
         
         self.observations = [min_dist, theta] + scan_state
 
@@ -217,34 +222,30 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         reward = 0
 
         # en yakın noktadan çok uzaktaysa
-        reward -= observations[0] * 0.1 # 0.04
-       
-        # if observations[0] == 0:
-        #     reward += 0.5 
-        # elif observations[0] == 1:
-        #     reward += 0.3 
-        # else:
-        #     reward+= 0.3/observations[0]
+        # L2 norm kullanaılabilir
+        # 0-1 arasına model inputları scale et
+        # Örn; 1m de iken 0.9 a giderse + ödül 1.1 e gidrse - ödül ver
+        
+        # reward -= observations[0]**2 * 0.1 # 0.04
 
         # look ahead e göre robot açısı az ise ödül ver
-        reward-= abs(observations[1]) * 0.08 # 0.05
-        
-        # if observations[1] == 0:
-        #     reward += 0.2 
-        # elif abs(observations[1]) == 1:
-        #     reward += 0.1 
-        # else:
-        #     reward+= 0.1/abs(observations[1])
+        # reward-= abs(observations[1])**2 * 0.08 # 0.05
 
-        # if self.is_angle_exceed:
-        #     reward-= 40
+
+        ## look ahead dist
+        ## e**(x+0.8)-2.22554092849 -> positive reward [0,1] aralığında [0, 3.82] arasında değer alıyor
+        r1 = 0.8*(exp(observations[0]+0.8)-2.22554092849)
+        reward-= r1
+
+        ## 5*(x-0.5)**2 -> negative reward [0,1] aralığında [1.25....1.25] değerini alıyor.
+        r2 = 5*(observations[1]-0.5)**2
+        reward-= r2
+        
         
         if self.is_collision_detected:
             reward-= 150
         if self.is_dist_exceed:
             reward-= 70
-        # if self.is_goal_reached:
-        #     reward+= 200
 
         # time factor
         if not done:
@@ -253,7 +254,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.cumulated_reward += reward
         self.cumulated_steps += 1
         
-        print(f'cumulated reward: {self.cumulated_reward}, reward: {reward}')
+        print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2}')
         return reward
 
 
@@ -284,7 +285,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
             start = PoseStamped()
             start.header.frame_id = "map"
-            start.pose = self.odom.pose.pose            
+            # start.pose = self.odom.pose.pose  
+            start.pose.position = Point(np.random.uniform(-2, 2.0), np.random.uniform(-12.0, -8.0), 0.0)
+            start.pose.orientation.w = 1.0
+
             goal_msg = PoseStamped()
             goal_msg.header.frame_id = "map"
             goal_msg.pose = goal.pose

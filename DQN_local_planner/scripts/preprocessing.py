@@ -85,6 +85,10 @@ class ScanPreProcessing():
     def round_filter(self, arr):
         return [round(x, 1) for x in arr]
 
+    def min_max_arr_normalize(self, val, min_val, max_val):
+        normalized_data = [(x - min_val) / (max_val - min_val) for x in val]
+        return normalized_data
+
     def get_states(self, scan:LaserScan):
         extended_scan = self.padding(scan)
         self.fill_scan_info(extended_scan)
@@ -92,13 +96,14 @@ class ScanPreProcessing():
         samples = self.extended_max_filter(samples)
         # samples = self.max_filter(samples)
         samples = self.round_filter(samples)
+        samples = self.min_max_arr_normalize(samples, 0.0, self.max_range)
         return samples
 
 
 class RobotPreProcessing():
-    def __init__(self, look_ahead_dist):
+    def __init__(self, look_ahead_dist, max_dist):
         self.look_ahead_dist = look_ahead_dist
-
+        self.max_dist = max_dist
     def round_filter(self, data):
         return round(data, 1)
 
@@ -148,9 +153,16 @@ class RobotPreProcessing():
         # get (x,y,theta) w.r.t. this coordinate system
         return robot_theta - look_ahead_theta
 
+    def min_max_normalize(self, val, min_val, max_val):
+        normalized_data = (val - min_val) / (max_val - min_val)
+        return normalized_data
+
     def get_states(self, path:Path, robot_pose:Pose):
         closed_point_idx, _, min_dist = self.closed_path_pose_info(path, robot_pose)
         lap = self.look_ahead_point(path, closed_point_idx)
         theta = self.theta_wrt_look_ahead_point(lap, robot_pose)
         theta = self.round_filter(theta)
-        return [self.round_filter(min_dist), self.round_filter(theta)]
+
+        norm_dist = self.min_max_normalize(self.round_filter(min_dist),0, self.max_dist)
+        norm_theta = self.min_max_normalize(self.round_filter(theta), -math.pi, math.pi)
+        return [norm_dist, norm_theta]

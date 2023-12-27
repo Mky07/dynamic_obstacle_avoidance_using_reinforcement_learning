@@ -110,7 +110,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # Set to false Done, because its calculated asyncronously
         self._episode_done = False
         self.is_dist_exceed = False
-        # self.is_angle_exceed = False
+        self.is_angle_exceed = False
         self.is_goal_reached = False
         self.nsteps_done = False
         self.is_collision_detected=False
@@ -124,7 +124,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             self.goal = self.create_random_goal()
 
             self.global_plan = self.get_global_path(self.goal)
-
 
         # self.goal = PoseStamped()
         # self.goal.pose.position.x = 0.0
@@ -205,11 +204,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             self._episode_done = True
 
         # robot acısı çok fazla ise işlemi sonlandır.
-        # if abs(observations[1]) > self.angle_th:
-        #     print("Angle has exceeded")
-        #     self.is_angle_exceed = True
-        #     self._episode_done = True
-
+        if 0.9<=observations[1] or observations[1]<=0.1:
+            print("Angle has exceeded")
+            self.is_angle_exceed = True
+            self._episode_done = True
 
         if self.cumulated_steps == self.nsteps-1:
             print("steps end")
@@ -221,35 +219,25 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def _compute_reward(self, observations, done):
         reward = 0
 
-        # en yakın noktadan çok uzaktaysa
-        # L2 norm kullanaılabilir
-        # 0-1 arasına model inputları scale et
-        # Örn; 1m de iken 0.9 a giderse + ödül 1.1 e gidrse - ödül ver
-        
-        # reward -= observations[0]**2 * 0.1 # 0.04
-
-        # look ahead e göre robot açısı az ise ödül ver
-        # reward-= abs(observations[1])**2 * 0.08 # 0.05
-
-
         ## look ahead dist
         ## e**(x+0.8)-2.22554092849 -> positive reward [0,1] aralığında [0, 3.82] arasında değer alıyor
-        r1 = 0.8*(exp(observations[0]+0.8)-2.22554092849)
+        r1 = 0.4*(exp(observations[0]+0.8)-2.22554092849)
         reward-= r1
 
         ## 5*(x-0.5)**2 -> negative reward [0,1] aralığında [1.25....1.25] değerini alıyor.
-        r2 = 5*(observations[1]-0.5)**2
+        r2 = 3*(observations[1]-0.5)**2
         reward-= r2
-        
         
         if self.is_collision_detected:
             reward-= 150
         if self.is_dist_exceed:
-            reward-= 70
+            reward-= 100
+        if self.is_angle_exceed:
+            reward-= 100
 
         # time factor
         if not done:
-            reward-= 0.05
+            reward-= 0.1
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
@@ -285,13 +273,15 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
             start = PoseStamped()
             start.header.frame_id = "map"
+            start.pose.position = Point(0.0, -11.0, 0.0)  
             # start.pose = self.odom.pose.pose  
-            start.pose.position = Point(np.random.uniform(-2, 2.0), np.random.uniform(-12.0, -8.0), 0.0)
+            # start.pose.position = Point(np.random.uniform(-2, 2.0), np.random.uniform(-12.0, -8.0), 0.0)
             start.pose.orientation.w = 1.0
 
             goal_msg = PoseStamped()
             goal_msg.header.frame_id = "map"
             goal_msg.pose = goal.pose
+            goal_msg.pose.orientation.w = 1.0
             req.start = start
             req.goal = goal_msg
             res = get_plan(req)
@@ -303,10 +293,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(np.random.uniform(-10.0, 10.0), np.random.uniform(-20.0, 0.0), 0.0)  
+        goal.pose.position = Point(10.0, -11.0, 0.0)  
+        # goal.pose.position = Point(np.random.uniform(-10.0, 10.0), np.random.uniform(-20.0, 0.0), 0.0)  
         print(f"goal position:{goal}")
         return goal
-
-
-## RGBD kamerayı kapat. Sim i yavaşlatıyor.
-## 

@@ -53,7 +53,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
-        self.action_spaces_value = create_action_spaces(1.0, 0.4, 10, 10)
+        self.action_spaces_value = create_action_spaces(0.9, 0.4, 3, 5)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
@@ -178,7 +178,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         print("observations: {}".format(self.observations))
         return self.observations
-
                                                              
     def _is_done(self, observations):
         self._episode_done = False
@@ -221,19 +220,19 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         ## look ahead dist
         ## e**(x+0.8)-2.22554092849 -> positive reward [0,1] aralığında [0, 3.82] arasında değer alıyor
-        r1 = 0.4*(exp(observations[0]+0.8)-2.22554092849)
-        reward-= r1
+        r1 = 0.2*(exp(-observations[0]+1.8)-2.226)
+        reward+= r1
 
         ## 5*(x-0.5)**2 -> negative reward [0,1] aralığında [1.25....1.25] değerini alıyor.
-        r2 = 3*(observations[1]-0.5)**2
-        reward-= r2
+        r2 = (-3*(observations[1]-0.5)**2+0.75)*0.5
+        reward+= r2
         
         if self.is_collision_detected:
-            reward-= 150
+            reward-= 1000
         if self.is_dist_exceed:
-            reward-= 100
+            reward-= 1000
         if self.is_angle_exceed:
-            reward-= 100
+            reward-= 1000
 
         # time factor
         if not done:

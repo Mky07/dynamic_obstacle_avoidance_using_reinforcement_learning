@@ -29,14 +29,15 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "m5.pkl"
+        self.filename = "m8.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
         self.params={
             "cumulated_rewards": [],
             "epsilon": 0.99,
-            "goal_reached_count": 0
+            "goal_reached_count": 0,
+            'histories': []
         }
             
         self.load()
@@ -51,6 +52,7 @@ class Feedback():
                 pass
             else:
                 self.params["cumulated_rewards"]+= params["cumulated_rewards"]
+                self.params["histories"]+= params["histories"]
                 self.params["epsilon"] = params["epsilon"]
                 self.params['goal_reached_count']+= params['goal_reached_count']
             pickle.dump(self.params, f)
@@ -185,15 +187,16 @@ class NNModel():
         # z = Dropout(0.5)(z)
         z = Dense(64, activation="relu")(z)
         #https://ai.stackexchange.com/questions/34589/using-softmax-non-linear-vs-linear-activation-function-in-deep-reinforceme#:~:text=The%20normal%20use%20case%20for,are%20estimates%20for%20some%20measurement.
-        z = Dense(self.action_size, activation="linear")(z)
-        # z = Dense(self.action_size, activation="softmax")(z)
+        # z = Dense(self.action_size, activation="linear")(z)
+        z = Dense(self.action_size, activation="softmax")(z)
         
         # our model will accept the inputs of the two branches and
         # then output a single value
         model = Model(inputs=[x.input, y.input], outputs=z)
 
-        # compile model
-        model.compile(loss="mse", optimizer=Adam(learning_rate = self.learning_rate))
+        # compile model categorical_hinge
+        model.compile(loss="categorical_hinge", optimizer=Adam(learning_rate = self.learning_rate))
+        # model.compile(loss="mse", optimizer=Adam(learning_rate = self.learning_rate))
 
         return model
 
@@ -211,7 +214,7 @@ class NNModel():
         return self.model.predict(state)
 
     def fit(self, state, target_f, epochs=1, verbose=0, callbacks=ClearMemory()):
-        self.model.fit(state, target_f, epochs=1, verbose=0, callbacks=ClearMemory())
+        return self.model.fit(state, target_f, epochs=1, verbose=0, callbacks=ClearMemory())
 
 class DQNAgent():
     def __init__(self, state_size, action_size, epsilon):
@@ -220,16 +223,17 @@ class DQNAgent():
                 
         # Q-Learning parameters
         self.gamma = 0.90
-        self.epsilon_decay = 0.997
+        self.epsilon_decay = 0.992
         self.epsilon_min = 0.05
-        self.memory = deque(maxlen=5000)
+        self.memory = deque(maxlen=2000)
         self.epsilon = epsilon
 
         # other parameters
         self.batch_size = 32
         self.max_str = '00000'
+        self.histories = []
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/w5/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/w8/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -263,7 +267,8 @@ class DQNAgent():
             target_f = self.model.predict(state)
             target_f[0][action] = target
 
-            self.model.fit(state, target_f, epochs=1, verbose=0, callbacks=ClearMemory())
+            self.history = self.model.fit(state, target_f, epochs=1, verbose=0, callbacks=ClearMemory())
+            self.histories.append(self.history)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
@@ -295,20 +300,22 @@ class RL():
         self.n_episodes = 10_000
         self.n_steps = 10_000
 
-
         self.env = gym.make('LocalPlannerWorld-v4')
         self.print_env()
 
         self.feedback = Feedback()
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
         self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
-        
+
+        # history = self.latest_feedback()['histories'][-10]
+        # self.draw_loss(history)
+
         epsilon = self.latest_feedback()["epsilon"]
         print(f'epsilon: {epsilon}')
         
         self.agent = DQNAgent(self.state_size(), self.action_size(), epsilon)
         self.agent.load_latest_model()
-
+        
     def action_size(self):
         """
         action space:[move forward, turn left, turn right]
@@ -331,10 +338,18 @@ class RL():
         print(f"state size:{self.state_size()} - action size:{self.action_size()}")
 
     def draw_cumulative_rewards(self, data):
-        print("cumulated rewards: {}".format(data[-200]))
         plt.xlabel("Episode")
         plt.ylabel("Cumulative Reward")
         plt.plot(moving_average(data, 500))
+        plt.show()
+
+    def draw_loss(self, history):
+        plt.plot(history.history['loss'])
+        # plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        # plt.legend(['train', 'test'], loc='upper left')
         plt.show()
 
     def learning_phase(self):
@@ -403,12 +418,13 @@ class RL():
                 params={
                     "cumulated_rewards": cumulated_rewards,
                     "epsilon": self.agent.epsilon,
-                    "goal_reached_count": self.goal_reached_count
+                    "goal_reached_count": self.goal_reached_count,
+                    'histories': self.agent.histories
                 }
                 self.feedback.save(params)
                 cumulated_rewards = []
                 self.goal_reached_count = 0
-
+                self.agent.histories = []
         self.env.close()
 
 if __name__ == '__main__':

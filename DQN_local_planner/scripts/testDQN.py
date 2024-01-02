@@ -231,8 +231,8 @@ class RL():
 
         self.feedback = Feedback()
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
-        # self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
-        # self.draw_loss(self.latest_feedback()["histories"])
+        self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
+        self.draw_loss(self.latest_feedback()["histories"])
         epsilon = self.latest_feedback()["epsilon"]
         print(f'epsilon: {epsilon}')
         
@@ -263,14 +263,14 @@ class RL():
     def draw_cumulative_rewards(self, data):
         plt.xlabel("Episode")
         plt.ylabel("Cumulative Reward")
-        plt.plot(moving_average(data, 50))
+        plt.plot(moving_average(data, 20))
         plt.show()
 
     def draw_loss(self, data):
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.plot(moving_average(data, 500))
+        plt.plot(moving_average(data, 20))
         plt.show()
 
     def learning_phase(self):

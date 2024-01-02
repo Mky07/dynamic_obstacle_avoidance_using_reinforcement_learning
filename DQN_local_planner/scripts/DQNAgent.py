@@ -307,9 +307,6 @@ class RL():
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
         self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
 
-        # history = self.latest_feedback()['histories'][-10]
-        # self.draw_loss(history)
-
         epsilon = self.latest_feedback()["epsilon"]
         print(f'epsilon: {epsilon}')
         

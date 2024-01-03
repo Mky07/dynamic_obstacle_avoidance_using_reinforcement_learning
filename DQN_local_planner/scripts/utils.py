@@ -1,8 +1,3 @@
-import numpy as np
-
-def moving_average(x, w):
-    return np.convolve(x, np.ones(w), 'valid') / w
-
 def create_action_spaces(max_vel_x=1.5, max_vel_z=0.78, sample_size_x=10, sample_size_z=20, is_backwards = False):
     """
     create action_spaces
@@ -34,5 +29,14 @@ def create_action_spaces(max_vel_x=1.5, max_vel_z=0.78, sample_size_x=10, sample
             if (x>=0.1 and abs(z)>=0.1) or (x==0 and z==0):
                 action_spaces[idx] = (x,z)
                 idx+=1
-    print("action spaces have created. {}".format(action_spaces))
-    return action_spaces
+    
+    #delete (0,0)
+    idx = 0
+    a_spaces = {}
+    for key, value in action_spaces.items():
+        if value != (0.0, 0.0):
+            a_spaces[idx] = value
+            idx+=1
+    
+    print("action spaces have created. {}".format(a_spaces))
+    return a_spaces

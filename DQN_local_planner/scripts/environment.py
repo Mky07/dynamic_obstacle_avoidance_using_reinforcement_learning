@@ -53,7 +53,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
-        self.action_spaces_value = create_action_spaces(1.0, 0.4, 5, 5)
+        self.action_spaces_value = create_action_spaces(1.0, 0.4, 6, 9)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
@@ -236,7 +236,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         # time factor
         if not done:
-            reward-= 10
+            reward-= 1
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
@@ -292,7 +292,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(10.0, -11.0, 0.0)  
-        # goal.pose.position = Point(np.random.uniform(-10.0, 10.0), np.random.uniform(-20.0, 0.0), 0.0)  
+        # goal.pose.position = Point(5.0, -11.0, 0.0)  
+        goal.pose.position = Point(np.random.uniform(-10.0, 10.0), np.random.uniform(-20.0, 0.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

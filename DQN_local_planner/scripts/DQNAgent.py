@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb2.pkl"
+        self.filename = "tb3.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -242,11 +242,11 @@ class DQNAgent():
         self.target_update_counter = 0
 
         # other parameters
-        self.batch_size = 512
+        self.batch_size = 256
         self.max_str = '00000'
         self.histories = []
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb2/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb3/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)

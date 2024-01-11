@@ -45,7 +45,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         max_range = 30 #m
         max_dist = 3 # m
-        self.look_ahead_dist = 1.0 #m
+        self.look_ahead_dist = 2.0 #m
         self.closed_obstacle_dist = 0.2
         # Limits
         self.goal_th = 0.3
@@ -63,14 +63,16 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         s1_l = np.full(1, 0)
         s2_l = np.full(1, 0)
+        s4_l = np.full(1, 0)
         s3_l = np.full(n_scan_states, 0.0)
 
         s1_h = np.full(1, 1)
         s2_h = np.full(1, 1)
+        s4_h = np.full(1, 1)
         s3_h = np.full(n_scan_states, 1)
         
-        high = np.concatenate((s1_h, s2_h, s3_h))
-        low = np.concatenate((s1_l, s2_l, s3_l))
+        high = np.concatenate((s1_h, s2_h, s4_h, s3_h))
+        low = np.concatenate((s1_l, s2_l, s4_l, s3_l))
         self.observation_space = spaces.Box(low, high)
         print("observation spaces: {}".format(self.observation_space))
         # state spaces end
@@ -169,12 +171,14 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.scan = self.get_laser_scan()
         
         scan_state = self.scan_preprocessing.get_states(self.scan)
-        min_dist, theta = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
+        min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
+
+        print(f"dist_diff: {dist_diff}")
 
         # disable scan state [max_range, max_range ...]
         scan_state= [1]*len(scan_state)
         
-        self.observations = [min_dist, theta] + scan_state
+        self.observations = [min_dist, theta, dist_diff] + scan_state
 
         print("observations: {}".format(self.observations))
         return self.observations
@@ -183,10 +187,11 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self._episode_done = False
 
         # collision detected
-        if min(observations[2:])<= self.closed_obstacle_dist:
+        if min(observations[3:])<= self.closed_obstacle_dist:
             print("min scan done")
             self.is_collision_detected = True
             self._episode_done = True
+            return self._episode_done
 
         # goal has reached        
         dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
@@ -195,23 +200,27 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             print("goal has reached")
             self.is_goal_reached = True
             self._episode_done = True
+            return self._episode_done
 
         # when it's too far from global plan
         if observations[0] > self.dist_th:
             print("too far from global plan")
             self.is_dist_exceed = True
             self._episode_done = True
+            return self._episode_done
 
         # robot acısı çok fazla ise işlemi sonlandır.
         if 0.9<=observations[1] or observations[1]<=0.1:
             print("Angle has exceeded")
             self.is_angle_exceed = True
             self._episode_done = True
+            return self._episode_done
 
         if self.cumulated_steps == self.nsteps-1:
             print("steps end")
             self._episode_done = True
             self.nsteps_done = True
+            return self._episode_done
 
         return self._episode_done
 
@@ -227,6 +236,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         r2 = (-3*(observations[1]-0.5)**2+0.75)
         reward+= r2
         
+        if self.is_goal_reached:
+            reward+= 1000
         if self.is_collision_detected:
             reward-= 500
         if self.is_dist_exceed:
@@ -293,6 +304,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def create_random_goal(self):
         goal = PoseStamped()
         # goal.pose.position = Point(5.0, -11.0, 0.0)  
-        goal.pose.position = Point(np.random.uniform(-10.0, 10.0), np.random.uniform(-20.0, 0.0), 0.0)  
+        goal.pose.position = Point(np.random.uniform(10, 15.0), np.random.uniform(-20.0, 0.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

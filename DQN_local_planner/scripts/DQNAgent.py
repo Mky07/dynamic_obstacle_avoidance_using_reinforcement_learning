@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb3.pkl"
+        self.filename = "tb5.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -84,8 +84,8 @@ class NNModel():
         self.state_size = state_size
         self.action_size = action_size
 
-        self.model = self.fully_connected_model()
-        # self.model = self.alexnet_cnn_model()
+        # self.model = self.fully_connected_model()
+        self.model = self.alexnet_cnn_model()
 
     def fully_connected_model(self):
         model = Sequential()
@@ -114,7 +114,7 @@ class NNModel():
 
     def cnn_model(self):
         # define two sets of inputs
-        scan_input_size = self.state_size - 2
+        scan_input_size = self.state_size - 3
         scan_inputs = Input(shape=(scan_input_size,1))
         other_inputs = Input(shape=(self.state_size - scan_input_size,))
         
@@ -160,7 +160,7 @@ class NNModel():
     def alexnet_cnn_model(self):
         #https://www.analyticsvidhya.com/blog/2021/03/introduction-to-the-architecture-of-alexnet/
         # define two sets of inputs
-        scan_input_size = self.state_size - 2
+        scan_input_size = self.state_size - 3
         scan_inputs = Input(shape=(scan_input_size,1))
         other_inputs = Input(shape=(self.state_size - scan_input_size,))
         
@@ -178,9 +178,11 @@ class NNModel():
         x = Model(inputs=scan_inputs, outputs=x)
 
         # the second branch opreates on the second input
-        y = Dense(2, activation="relu")(other_inputs)
-        y = Dense(16, activation="relu")(y)
+        y = Dense(3, activation="relu")(other_inputs)
         y = Dense(32, activation="relu")(y)
+        y = Dense(64, activation="relu")(y)
+        y = Dense(128, activation="relu")(y)
+        y = Dense(64, activation="relu")(y)
         y = Model(inputs=other_inputs, outputs=y)
         
         # combine the output of the two branches
@@ -189,9 +191,9 @@ class NNModel():
         # apply a FC layer and then a regression prediction on the
         
         # combined outputs
-        z = Dense(64, activation="relu")(combined)
+        z = Dense(2, activation="relu")(combined)
         # z = Dropout(0.5)(z)
-        z = Dense(64, activation="relu")(z)
+        # z = Dense(64, activation="relu")(z)
         #https://ai.stackexchange.com/questions/34589/using-softmax-non-linear-vs-linear-activation-function-in-deep-reinforceme#:~:text=The%20normal%20use%20case%20for,are%20estimates%20for%20some%20measurement.
         z = Dense(self.action_size, activation="linear")(z)
         # z = Dense(self.action_size, activation="softmax")(z)
@@ -202,7 +204,6 @@ class NNModel():
 
         # compile model categorical_hinge
         model.compile(loss="mse", optimizer=Adam(lr = self.learning_rate))
-        # model.compile(loss="mse", optimizer=Adam(learning_rate = self.learning_rate))
 
         return model
 
@@ -236,7 +237,9 @@ class DQNAgent():
         self.gamma = 0.95
         self.epsilon_decay = 0.992
         self.epsilon_min = 0.05
-        self.memory = deque(maxlen=10000)
+        self.memory = deque(maxlen=5000)
+        self.min_replay_memory = 1000
+
         self.epsilon = epsilon
         self.update_target_every = 20
         self.target_update_counter = 0
@@ -246,7 +249,7 @@ class DQNAgent():
         self.max_str = '00000'
         self.histories = []
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb3/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb5/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -265,44 +268,50 @@ class DQNAgent():
     def act(self, state):
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
-        
         act_values = self.model.predict(state)
         # print(f'act values: {act_values}')
         return np.argmax(act_values[0])        
 
     def replay(self):
-        if len(self.memory) <self.batch_size:
+        if len(self.memory) <self.min_replay_memory:
             return
         
         minibatch = random.sample(self.memory, self.batch_size)
 
-        # current states
-        states = np.array([transition[0][0] for transition in minibatch])
-        qs_list = self.model.predict(states)
+        # X0 = []
+        # X1 = []
+        # y = []
 
-        # future states
-        next_states = np.array([transition[3][0] for transition in minibatch])
-        future_qs_list = self.target_model.predict(next_states)
+        state_list0 = []
+        state_list1 = []
+        next_state_list0 = []
+        next_state_list1 = []
+                
+        for index,(state, action, reward, next_state, done) in enumerate(minibatch):
+            state_list0.append(state[0][0])
+            state_list1.append(state[1][0])
+            next_state_list0.append(next_state[0][0])
+            next_state_list1.append(next_state[1][0])
 
-        X = []
-        y = []
+        qs_list = self.model.predict([np.array(state_list0), np.array(state_list1)])
+        qs_list_next = self.model.predict([np.array(next_state_list0), np.array(next_state_list1)])
 
         for index,(state, action, reward, next_state, done) in enumerate(minibatch):
             new_q = reward
             if not done:
-                new_q = reward + self.gamma * np.max(future_qs_list[index])
+                new_q = reward + self.gamma * np.max(qs_list_next[index])
 
             # update Q value for given state
             qs = qs_list[index]
             qs[action] = new_q
 
-            # append to training data
-            X.append(state[0])
-            y.append(qs)
+            # X0.append(state[0][0])
+            # X1.append(state[1][0])
+            # y.append(qs[0])
 
-        self.history = self.model.fit(np.array(X), np.array(y), batch_size=self.batch_size)
+        self.history = self.model.fit([np.array(state_list0), np.array(state_list1)], np.array(qs_list), batch_size=self.batch_size)
         self.histories.append(self.history.history['loss'][0])
-
+        
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
         
@@ -314,11 +323,11 @@ class DQNAgent():
 
     def load(self, name):
         self.model.load_weights(name)
+        self.target_model.set_weights(self.model.get_weights())
 
     def save(self, name):
         # self.model.save_weights(name)
         self.target_model.save_weights(name)
-
 
     def load_latest_model(self):
         dir_list = os.listdir(self.output_dir)
@@ -379,14 +388,14 @@ class RL():
     def draw_cumulative_rewards(self, data):
         plt.xlabel("Episode")
         plt.ylabel("Cumulative Reward")
-        plt.plot(moving_average(data, 500))
+        plt.plot(moving_average(data, 300))
         plt.show()
 
     def draw_loss(self, data):
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.plot(moving_average(data, 500))
+        plt.plot(moving_average(data, 300))
         plt.show()
 
     def learning_phase(self):
@@ -402,12 +411,13 @@ class RL():
         # rush_count_limit = 2
         for e in range(self.n_episodes):
             state = self.env.reset()
-            state = np.reshape(state, [1, self.state_size()])
-            # scan_states = state[2:]
-            # other_states = state[:2]
-            # state1 = np.reshape(scan_states, [1, len(scan_states,)])
-            # state2 = np.reshape(other_states, [1, len(other_states,)])
-            # state = [state1, state2]
+            # state = np.reshape(state, [1, self.state_size()])
+            scan_states = state[3:]
+            other_states = state[:3]
+            state1 = np.reshape(scan_states, [1, len(scan_states,)])
+            state2 = np.reshape(other_states, [1, len(other_states,)])
+            state = [state1, state2]
+
             cumulated_reward = 0.0
 
             for time in range(self.n_steps):
@@ -419,16 +429,17 @@ class RL():
                 next_state, reward, done, _ = self.env.step(action)
                 cumulated_reward+= reward
 
-                # next_scan_states = next_state[2:]
-                # next_other_states = next_state[:2]
-                # next_state1 = np.reshape(next_scan_states, [1, len(next_scan_states,)])
-                # next_state2 = np.reshape(next_other_states, [1, len(next_other_states,)])
-                # next_state = [next_state1, next_state2]
+                next_scan_states = next_state[3:]
+                next_other_states = next_state[:3]
+                next_state1 = np.reshape(next_scan_states, [1, len(next_scan_states,)])
+                next_state2 = np.reshape(next_other_states, [1, len(next_other_states,)])
 
-                next_state = np.reshape(next_state, [1, self.state_size()])
+                next_state = [next_state1, next_state2]
+
+                # next_state = np.reshape(next_state, [1, self.state_size()])
                 self.agent.remember(state, action, reward, next_state, done)
                 state = next_state
-                print(f'step: {time}/{self.n_steps} episode: {e}/{self.n_episodes}')
+                print(f'step: {time}/{self.n_steps} episode: {e}/{self.n_episodes} target_update_counter: {self.agent.target_update_counter}')
 
                 if done:
                     if self.env.is_goal_reached:
@@ -439,7 +450,7 @@ class RL():
                         self.is_angle_exceed_count+=1
 
                     print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"][-200:]}')
-                    print(f'histores rewards: {self.latest_feedback()["histories"][-200:]}')
+                    # print(f'histores rewards: {self.latest_feedback()["histories"][-200:]}')
 
                     rospy.logwarn("********************************************")
                     print("episode: {}/{}, score: {}, e:{:2} goal reached: {} angle_exceed:{} dist_exceed:{}".format(e, self.n_episodes, time, self.agent.epsilon, self.cumulative_goal_reached_count, self.is_angle_exceed_count, self.is_dist_exceed_count))

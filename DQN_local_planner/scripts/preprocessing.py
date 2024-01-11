@@ -139,7 +139,7 @@ class RobotPreProcessing():
                 lap = path.poses[idx].pose.position
             idx+=1
         
-        return lap
+        return lap, dist
         
     def theta_wrt_look_ahead_point(self, look_ahead_point:Point, robot_pose:Pose):
         """
@@ -159,10 +159,11 @@ class RobotPreProcessing():
 
     def get_states(self, path:Path, robot_pose:Pose):
         closed_point_idx, _, min_dist = self.closed_path_pose_info(path, robot_pose)
-        lap = self.look_ahead_point(path, closed_point_idx)
+        lap, dist_diff = self.look_ahead_point(path, closed_point_idx)
         theta = self.theta_wrt_look_ahead_point(lap, robot_pose)
         theta = self.round_filter(theta)
 
         norm_dist = self.min_max_normalize(self.round_filter(min_dist),0, self.max_dist)
         norm_theta = self.min_max_normalize(self.round_filter(theta), -math.pi, math.pi)
-        return [norm_dist, norm_theta]
+        dist_diff = self.min_max_normalize(self.round_filter(dist_diff), 0.0, self.look_ahead_dist)
+        return [norm_dist, norm_theta, dist_diff]

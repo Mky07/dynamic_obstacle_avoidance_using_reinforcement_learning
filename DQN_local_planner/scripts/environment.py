@@ -229,13 +229,17 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         ## look ahead dist
         ## e**(x+0.8)-2.22554092849 -> positive reward [0,1] aralığında [0, 3.82] arasında değer alıyor
-        r1 = 0.5*(exp(-observations[0]+1.8)-2.226)
+        r1 = 1.5*(exp(-observations[0]+1.8)-2.226)
         reward+= r1
 
         ## 5*(x-0.5)**2 -> negative reward [0,1] aralığında [1.25....1.25] değerini alıyor.
         r2 = (-3*(observations[1]-0.5)**2+0.75)
         reward+= r2
         
+        dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
+        if dist<=self.look_ahead_dist:
+            reward+=10/dist
+
         if self.is_goal_reached:
             reward+= 1000
         if self.is_collision_detected:
@@ -247,7 +251,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         # time factor
         if not done:
-            reward-= 1
+            reward-= 0.1
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1

@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb6.pkl"
+        self.filename = "tb7.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -249,7 +249,7 @@ class DQNAgent():
         self.max_str = '00000'
         self.histories = []
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb6/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb7/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -439,7 +439,8 @@ class RL():
                 # next_state = np.reshape(next_state, [1, self.state_size()])
                 self.agent.remember(state, action, reward, next_state, done)
                 state = next_state
-                print(f'step: {time}/{self.n_steps} episode: {e}/{self.n_episodes} target_update_counter: {self.agent.target_update_counter}')
+                print(f'step: {time}/{self.n_steps} episode: {e}/{self.n_episodes} target_update_counter: {self.agent.target_update_counter} goal_reached:{self.cumulative_goal_reached_count}')
+
 
                 if done:
                     if self.env.is_goal_reached:

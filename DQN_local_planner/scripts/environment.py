@@ -47,9 +47,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         max_dist = 3 # m
         self.look_ahead_dist = 2.0 #m
         self.closed_obstacle_dist = 0.2
+        
         # Limits
         self.goal_th = 0.3
-        self.dist_th = 1
+        self.dist_th = max_dist
         # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
@@ -228,20 +229,23 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         reward = 0
 
         ## look ahead dist
-        ## e**(x+0.8)-2.22554092849 -> positive reward [0,1] aralığında [0, 3.82] arasında değer alıyor
-        r1 = 1.5*(exp(-observations[0]+1.8)-2.226)
+        r1 = (exp(-observations[0]+1.8)-1.406) # reward range: [0.82-4.644]
         reward+= r1
 
-        ## 5*(x-0.5)**2 -> negative reward [0,1] aralığında [1.25....1.25] değerini alıyor.
-        r2 = (-3*(observations[1]-0.5)**2+0.75)
+        ## angle
+        r2 = (-3*(observations[1]-0.5)**2+0.75) # reward range: [0.0, 0.75]
         reward+= r2
         
         dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
-        if dist<=self.look_ahead_dist:
-            reward+=10/dist
+        
+        r3=0.0
+        if dist<self.look_ahead_dist:
+            if dist!=0:
+                r3 = 3/dist # reward range: [1.5-9]
+        reward+= r3
 
         if self.is_goal_reached:
-            reward+= 1000
+            reward+= 500
         if self.is_collision_detected:
             reward-= 500
         if self.is_dist_exceed:
@@ -256,7 +260,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.cumulated_reward += reward
         self.cumulated_steps += 1
         
-        print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2}')
+        print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2} r3:{r3}')
         return reward
 
 

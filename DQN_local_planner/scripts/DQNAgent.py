@@ -296,6 +296,7 @@ class DQNAgent():
             max_num = max(weights)
             self.max_str = f'{max_num:05d}'
             filename = "weights_"+self.max_str+".hdf5"
+            filename = "weights_00570.hdf5"
             self.load(self.output_dir + filename)
             
             print("[Agent] {} file has loaded.".format(filename))

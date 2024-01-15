@@ -38,7 +38,7 @@ register(
 
 class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
-        self.nsteps = 500
+        self.nsteps = 1000
         self.scan_ranges = 360
         self.scan_padding = 25
         n_scan_states = self.scan_ranges + self.scan_padding
@@ -54,7 +54,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
-        self.action_spaces_value = create_action_spaces(1.0, 0.4, 6, 9)
+        self.max_vx = 1.0
+        self.max_wz = 0.4
+        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz, 6, 9)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
@@ -65,15 +67,19 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         s1_l = np.full(1, 0)
         s2_l = np.full(1, 0)
         s4_l = np.full(1, 0)
+        s5_l = np.full(1, 0)
+        s6_l = np.full(1, 0)
         s3_l = np.full(n_scan_states, 0.0)
 
         s1_h = np.full(1, 1)
         s2_h = np.full(1, 1)
         s4_h = np.full(1, 1)
+        s5_h = np.full(1, 1)
+        s6_h = np.full(1, 1)
         s3_h = np.full(n_scan_states, 1)
         
-        high = np.concatenate((s1_h, s2_h, s4_h, s3_h))
-        low = np.concatenate((s1_l, s2_l, s4_l, s3_l))
+        high = np.concatenate((s1_h, s2_h, s4_h,s5_h,s6_h, s3_h))
+        low = np.concatenate((s1_l, s2_l, s4_l,s5_l,s6_l, s3_l))
         self.observation_space = spaces.Box(low, high)
         print("observation spaces: {}".format(self.observation_space))
         # state spaces end
@@ -168,18 +174,28 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         TurtleBot2Env API DOCS
         :return:
         """
+
+        """
+        obs: [[L, theta, hedefe olan mesafe,vx, w, action x, action w, scans]
+        """
+
         self.odom = self.get_odom()
         self.scan = self.get_laser_scan()
         
         scan_state = self.scan_preprocessing.get_states(self.scan)
         min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
 
-        print(f"dist_diff: {dist_diff}")
+        vx = self.odom.twist.twist.linear.x
+        # normalize vx. Robot geri hızlarda gidebiliyorsa 0.0 yerine -self.max yaz.
+        vx = self.robot_preprocessing.min_max_normalize(vx,0.0, self.max_vx)
+
+        wz = self.odom.twist.twist.angular.z
+        wz = self.robot_preprocessing.min_max_normalize(wz, -self.max_wz, self.max_wz)
 
         # disable scan state [max_range, max_range ...]
         scan_state= [1]*len(scan_state)
         
-        self.observations = [min_dist, theta, dist_diff] + scan_state
+        self.observations = [min_dist, theta, dist_diff, vx, wz] + scan_state
 
         print("observations: {}".format(self.observations))
         return self.observations
@@ -188,7 +204,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self._episode_done = False
 
         # collision detected
-        if min(observations[3:])<= self.closed_obstacle_dist:
+        if min(observations[5:])<= self.closed_obstacle_dist:
             print("min scan done")
             self.is_collision_detected = True
             self._episode_done = True
@@ -312,6 +328,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def create_random_goal(self):
         goal = PoseStamped()
         # goal.pose.position = Point(5.0, -11.0, 0.0)  
-        goal.pose.position = Point(np.random.uniform(10, 15.0), np.random.uniform(-20.0, 0.0), 0.0)  
+        goal.pose.position = Point(np.random.uniform(10, 15.0), np.random.uniform(-20.0, -5.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

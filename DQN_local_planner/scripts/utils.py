@@ -45,3 +45,7 @@ def create_action_spaces(max_vel_x=1.5, max_vel_z=0.78, sample_size_x=10, sample
     
     print("action spaces have created. {}".format(a_spaces))
     return a_spaces
+
+def min_max_normalize(self, val, min_val, max_val):
+    normalized_data = (val - min_val) / (max_val - min_val)
+    return normalized_data

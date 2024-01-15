@@ -18,7 +18,7 @@ from keras import backend as k
 import environment
 import rospy
 import rospkg
-from utils import moving_average
+from utils import moving_average, min_max_normalize
 
 import pickle
 import matplotlib.pyplot as plt
@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb7.pkl"
+        self.filename = "tb8.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -112,57 +112,13 @@ class NNModel():
 
         return model
 
-    def cnn_model(self):
-        # define two sets of inputs
-        scan_input_size = self.state_size - 3
-        scan_inputs = Input(shape=(scan_input_size,1))
-        other_inputs = Input(shape=(self.state_size - scan_input_size,))
-        
-        # the first branch operates on the first input
-        x = Conv1D(filters=32, kernel_size=3, padding= "same", activation='relu')(scan_inputs)
-        x = Conv1D(filters=64, kernel_size=3, padding= "same", activation='relu')(x)
-        x = MaxPooling1D(pool_size=(3,), padding="same")(x)
-        x = Conv1D(filters=64, kernel_size=3, padding= "same", activation='relu')(x)
-        x = Dropout(0.5)(x)
-        x = Conv1D(filters=128, kernel_size=3, padding= "same", activation='relu')(x)
-        x = MaxPooling1D(pool_size=(3,), padding="same")(x)
-        x = Flatten()(x)
-        x = Model(inputs=scan_inputs, outputs=x)
-        
-        # the second branch opreates on the second input
-
-        ####################################
-        ##### Spatial embedding ##
-        ####################################
-        y = Dense(16, activation="relu")(other_inputs)
-        # y = Dense(16, activation="relu")(y)
-        y = Model(inputs=other_inputs, outputs=y)
-        
-        # combine the output of the two branches
-        combined = concatenate([x.output, y.output])
-
-        # apply a FC layer and then a regression prediction on the
-        
-        # combined outputs
-        z = Dense(128, activation="relu")(combined)
-        z = Dense(64, activation="relu")(z)
-        z = Dense(self.action_size, activation="linear")(z)
-        
-        # our model will accept the inputs of the two branches and
-        # then output a single value
-        model = Model(inputs=[x.input, y.input], outputs=z)
-
-        # compile model
-        model.compile(loss="mse", optimizer=Adam(learning_rate = self.learning_rate))
-
-        return model
-
     def alexnet_cnn_model(self):
         #https://www.analyticsvidhya.com/blog/2021/03/introduction-to-the-architecture-of-alexnet/
         # define two sets of inputs
-        scan_input_size = self.state_size - 3
+        other_inputs_size = 5
+        scan_input_size = self.state_size - other_inputs_size
         scan_inputs = Input(shape=(scan_input_size,1))
-        other_inputs = Input(shape=(self.state_size - scan_input_size,))
+        other_inputs = Input(shape=(other_inputs_size,))
         
         # the first branch operates on the first input
         x = Conv1D(filters=32, kernel_size=11, strides=4, padding= "same", activation='relu')(scan_inputs)
@@ -178,7 +134,7 @@ class NNModel():
         x = Model(inputs=scan_inputs, outputs=x)
 
         # the second branch opreates on the second input
-        y = Dense(3, activation="relu")(other_inputs)
+        y = Dense(5, activation="relu")(other_inputs)
         y = Dense(32, activation="relu")(y)
         y = Dense(64, activation="relu")(y)
         y = Dense(128, activation="relu")(y)
@@ -249,7 +205,7 @@ class DQNAgent():
         self.max_str = '00000'
         self.histories = []
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb7/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb8/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -355,6 +311,7 @@ class RL():
 
         self.feedback = Feedback()
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
+        print(f'Goal reached count: {self.latest_feedback()["goal_reached_count"]}')
         self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
         self.draw_loss(self.latest_feedback()["histories"])
 
@@ -407,13 +364,11 @@ class RL():
         self.is_angle_exceed_count = 0
         self.cumulative_goal_reached_count = 0
 
-        # rush_count = 0
-        # rush_count_limit = 2
         for e in range(self.n_episodes):
             state = self.env.reset()
             # state = np.reshape(state, [1, self.state_size()])
-            scan_states = state[3:]
-            other_states = state[:3]
+            scan_states = state[5:]
+            other_states = state[:5]
             state1 = np.reshape(scan_states, [1, len(scan_states,)])
             state2 = np.reshape(other_states, [1, len(other_states,)])
             state = [state1, state2]
@@ -424,13 +379,11 @@ class RL():
                 # env.render()
                 action = self.agent.act(state)
                 print(f"action: {action}")
-                # if rush_count<rush_count_limit:
-                #     action = 28
                 next_state, reward, done, _ = self.env.step(action)
                 cumulated_reward+= reward
 
-                next_scan_states = next_state[3:]
-                next_other_states = next_state[:3]
+                next_scan_states = next_state[5:]
+                next_other_states = next_state[:5]
                 next_state1 = np.reshape(next_scan_states, [1, len(next_scan_states,)])
                 next_state2 = np.reshape(next_other_states, [1, len(next_other_states,)])
 

@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb8.pkl"
+        self.filename = "tb12.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -129,16 +129,19 @@ class NNModel():
         x = Conv1D(filters=32, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
         x = Conv1D(filters=16, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
         x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
-        x = Dropout(0.5)(x)
+        x = Conv1D(filters=4, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
+        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
+        x = Dropout(0.2)(x)
         x = Flatten()(x)
         x = Model(inputs=scan_inputs, outputs=x)
 
         # the second branch opreates on the second input
         y = Dense(5, activation="relu")(other_inputs)
-        y = Dense(32, activation="relu")(y)
-        y = Dense(64, activation="relu")(y)
-        y = Dense(128, activation="relu")(y)
-        y = Dense(64, activation="relu")(y)
+        y = Dense(16, activation="relu")(y)
+        y = Dense(5, activation="relu")(y)
+        # y = Dense(64, activation="relu")(y)
+        # y = Dense(128, activation="relu")(y)
+        # y = Dense(64, activation="relu")(y)
         y = Model(inputs=other_inputs, outputs=y)
         
         # combine the output of the two branches
@@ -147,7 +150,8 @@ class NNModel():
         # apply a FC layer and then a regression prediction on the
         
         # combined outputs
-        z = Dense(2, activation="relu")(combined)
+        z = Dense(32, activation="relu")(combined)
+        z = Dense(32, activation="relu")(combined)
         # z = Dropout(0.5)(z)
         # z = Dense(64, activation="relu")(z)
         #https://ai.stackexchange.com/questions/34589/using-softmax-non-linear-vs-linear-activation-function-in-deep-reinforceme#:~:text=The%20normal%20use%20case%20for,are%20estimates%20for%20some%20measurement.
@@ -182,7 +186,7 @@ class NNModel():
         return self.model.predict(state)
 
     def fit(self, X, y, batch_size=32):
-        return self.model.fit(X, y, batch_size=batch_size, shuffle=False, epochs=1, verbose=0, callbacks=ClearMemory())
+        return self.model.fit(X, y, batch_size=batch_size, epochs=1, verbose=0, callbacks=ClearMemory())
 
 class DQNAgent():
     def __init__(self, state_size, action_size, epsilon):
@@ -191,21 +195,22 @@ class DQNAgent():
                 
         # Q-Learning parameters
         self.gamma = 0.95
-        self.epsilon_decay = 0.992
+        self.epsilon_decay = 0.999
         self.epsilon_min = 0.05
-        self.memory = deque(maxlen=5000)
-        self.min_replay_memory = 1000
-
+        self.min_replay_memory = 1_000
+        self.max_replay_memory = 50_000
+        self.memory = deque(maxlen=self.max_replay_memory)
         self.epsilon = epsilon
-        self.update_target_every = 20
+        self.update_target_every = 5
         self.target_update_counter = 0
 
         # other parameters
-        self.batch_size = 256
+        self.batch_size = 128
         self.max_str = '00000'
         self.histories = []
+        self.is_model_fit = False
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb8/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb12/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -225,18 +230,14 @@ class DQNAgent():
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
         act_values = self.model.predict(state)
-        # print(f'act values: {act_values}')
         return np.argmax(act_values[0])        
 
     def replay(self):
         if len(self.memory) <self.min_replay_memory:
             return
-        
-        minibatch = random.sample(self.memory, self.batch_size)
+        self.is_model_fit = True
 
-        # X0 = []
-        # X1 = []
-        # y = []
+        minibatch = random.sample(self.memory, self.batch_size)
 
         state_list0 = []
         state_list1 = []
@@ -250,28 +251,21 @@ class DQNAgent():
             next_state_list1.append(next_state[1][0])
 
         qs_list = self.model.predict([np.array(state_list0), np.array(state_list1)])
-        qs_list_next = self.model.predict([np.array(next_state_list0), np.array(next_state_list1)])
+        qs_list_next = self.target_model.predict([np.array(next_state_list0), np.array(next_state_list1)])
 
         for index,(state, action, reward, next_state, done) in enumerate(minibatch):
             new_q = reward
             if not done:
                 new_q = reward + self.gamma * np.max(qs_list_next[index])
 
-            # update Q value for given state
-            qs = qs_list[index]
-            qs[action] = new_q
-
-            # X0.append(state[0][0])
-            # X1.append(state[1][0])
-            # y.append(qs[0])
+            # update Q value for givefn state
+            qs_list[index][action] = new_q
+            # qs[action] = new_q
 
         self.history = self.model.fit([np.array(state_list0), np.array(state_list1)], np.array(qs_list), batch_size=self.batch_size)
         self.histories.append(self.history.history['loss'][0])
-        
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-        
-        self.target_update_counter += 1
+                
+        # self.target_update_counter += 1
 
         if self.target_update_counter > self.update_target_every:
             self.target_model.set_weights(self.model.get_weights())
@@ -296,11 +290,9 @@ class DQNAgent():
             max_num = max(weights)
             self.max_str = f'{max_num:05d}'
             filename = "weights_"+self.max_str+".hdf5"
-            filename = "weights_00570.hdf5"
             self.load(self.output_dir + filename)
             
             print("[Agent] {} file has loaded.".format(filename))
-
 
 class RL():
     def __init__(self):
@@ -346,14 +338,16 @@ class RL():
     def draw_cumulative_rewards(self, data):
         plt.xlabel("Episode")
         plt.ylabel("Cumulative Reward")
-        plt.plot(moving_average(data, 300))
+        plt.plot(moving_average(data, 500))
         plt.show()
 
     def draw_loss(self, data):
+        data = [x for x in data if x <= 5_000]
+
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.plot(moving_average(data, 300))
+        plt.plot(moving_average(data, 1000))
         plt.show()
 
     def learning_phase(self):
@@ -376,7 +370,9 @@ class RL():
 
             cumulated_reward = 0.0
 
+            c = 0.0
             for time in range(self.n_steps):
+                c = time
                 # env.render()
                 action = self.agent.act(state)
                 print(f"action: {action}")
@@ -392,11 +388,16 @@ class RL():
 
                 # next_state = np.reshape(next_state, [1, self.state_size()])
                 self.agent.remember(state, action, reward, next_state, done)
+
                 state = next_state
                 print(f'step: {time}/{self.n_steps} episode: {e}/{self.n_episodes} target_update_counter: {self.agent.target_update_counter} goal_reached:{self.cumulative_goal_reached_count}')
 
-
                 if done:
+                    self.agent.target_update_counter += 1
+                    
+                    if self.agent.epsilon > self.agent.epsilon_min:
+                        self.agent.epsilon *= self.agent.epsilon_decay
+
                     if self.env.is_goal_reached:
                         self.goal_reached_count+=1
                     if self.env.is_dist_exceed:
@@ -411,13 +412,16 @@ class RL():
                     print("episode: {}/{}, score: {}, e:{:2} goal reached: {} angle_exceed:{} dist_exceed:{}".format(e, self.n_episodes, time, self.agent.epsilon, self.cumulative_goal_reached_count, self.is_angle_exceed_count, self.is_dist_exceed_count))
                     rospy.logwarn("********************************************")
                     break
+            
+
+            print(f"model.fit size: {c}")
+            for i in range(c):
+                print(f"model.fit size: {i}/{c}")
+                self.agent.replay()
                         
             cumulated_rewards.append(cumulated_reward)
             
-            # replay agent
-            self.agent.replay()
-
-            if e % 10 == 0:
+            if e % 10 == 0 and self.agent.is_model_fit:
                 self.agent.save(self.agent.output_dir + "weights_"+"{:05d}".format(int(self.agent.max_str)+e) + ".hdf5")
 
                 self.cumulative_goal_reached_count+= self.goal_reached_count

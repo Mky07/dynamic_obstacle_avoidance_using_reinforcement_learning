@@ -35,17 +35,16 @@ register(
         max_episode_steps=timestep_limit_per_episode,
     )
 
-
 class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
-        self.nsteps = 1000
+        self.nsteps = 300
         self.scan_ranges = 360
         self.scan_padding = 25
         n_scan_states = self.scan_ranges + self.scan_padding
 
         max_range = 30 #m
-        max_dist = 3 # m
-        self.look_ahead_dist = 2.0 #m
+        max_dist = 1 # m
+        self.look_ahead_dist = 1.0 #m
         self.closed_obstacle_dist = 0.2
         
         # Limits
@@ -253,19 +252,27 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         reward+= r2
         
         dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
-        
+
         r3=0.0
-        if dist<self.look_ahead_dist:
+        if observations[2]<1:
             if dist!=0:
-                r3 = 3/dist # reward range: [1.5-9]
+                r3 = 1.5/dist # reward range: [1.5, 4.5]
         reward+= r3
 
+        # r3=0.0
+        # if dist<self.look_ahead_dist:
+        #     if dist!=0:
+        #         r3 = 1.5/dist # reward range: [1.5, 4.5]
+        # reward+= r3
+
+        reward+= observations[3] # Hız arttıkça ödül ver.
+
         if self.is_goal_reached:
-            reward+= 500
+            reward+= 5000
         if self.is_collision_detected:
-            reward-= 500
+            reward-= 1000
         if self.is_dist_exceed:
-            reward-= 500
+            reward-= 1000
         if self.is_angle_exceed:
             reward-= 500
 
@@ -278,7 +285,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         
         print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2} r3:{r3}')
         return reward
-
 
     def set_model_state(self, model_name, min_x, max_x, min_y, max_y):
 
@@ -328,6 +334,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def create_random_goal(self):
         goal = PoseStamped()
         # goal.pose.position = Point(5.0, -11.0, 0.0)  
-        goal.pose.position = Point(np.random.uniform(10, 15.0), np.random.uniform(-20.0, -5.0), 0.0)  
+        goal.pose.position = Point(np.random.uniform(1.0, 6.0), np.random.uniform(-15.0, -5.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

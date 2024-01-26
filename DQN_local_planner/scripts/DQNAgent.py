@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb14.pkl"
+        self.filename = "tb15.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -87,8 +87,8 @@ class NNModel():
         self.state_size = state_size
         self.action_size = action_size
 
-        self.model = self.fully_connected_model()
-        # self.model = self.alexnet_cnn_model()
+        # self.model = self.fully_connected_model()
+        self.model = self.alexnet_cnn_model()
 
     def fully_connected_model(self):
         model = Sequential()
@@ -118,7 +118,7 @@ class NNModel():
     def alexnet_cnn_model(self):
         #https://www.analyticsvidhya.com/blog/2021/03/introduction-to-the-architecture-of-alexnet/
         # define two sets of inputs
-        other_inputs_size = 5
+        other_inputs_size = 3
         scan_input_size = self.state_size - other_inputs_size
         scan_inputs = Input(shape=(scan_input_size,1))
         other_inputs = Input(shape=(other_inputs_size,))
@@ -166,7 +166,7 @@ class NNModel():
         model = Model(inputs=[x.input, y.input], outputs=z)
 
         # compile model categorical_hinge
-        model.compile(loss="mse", optimizer=Adam(lr = self.learning_rate))
+        model.compile(loss="mse", optimizer=Adam(learning_rate= self.learning_rate))
 
         return model
 
@@ -213,7 +213,7 @@ class DQNAgent():
         self.histories = []
         self.is_model_fit = False
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb14/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb15/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -242,59 +242,55 @@ class DQNAgent():
 
         minibatch = random.sample(self.memory, self.batch_size)
 
-        state_list = []
-        next_state_list = []
-        for index,(state, action, reward, next_state, done) in enumerate(minibatch):
-            state_list.append(state[0])
-            next_state_list.append(next_state[0])
-
-        qs_list = self.model.predict(np.array(state_list))
-        qs_next_list = self.target_model.predict(np.array(next_state_list))
-        
-        # print(f"qs. {qs_list}")
-        for index,(state, action, reward, next_state, done) in enumerate(minibatch):
-            new_q = reward
-            if not done:
-                new_q = reward + self.gamma * np.max(qs_next_list[index])
- 
-            # update Q value for givefn state
-            # target = self.model.predict(state)
-            qs_list[index][action] = new_q
-
-            # X.append(state[0])
-            # y.append(target[0])
-        # print(f"statelist [0] size: {state_list[0].shape}, qs: {qs_list}")
-        print("****************************************************************")
-        self.history = self.model.fit(np.array(state_list), np.array(qs_list), self.batch_size)
-        print("****************************************************************")
-        # if self.epsilon > self.epsilon_min:
-        #     self.epsilon *= self.epsilon_decay
-
-        # state_list0 = []
-        # state_list1 = []
-        # next_state_list0 = []
-        # next_state_list1 = []
-                
+        # state_list = []
+        # next_state_list = []
         # for index,(state, action, reward, next_state, done) in enumerate(minibatch):
-        #     state_list0.append(state[0][0])
-        #     state_list1.append(state[1][0])
-        #     next_state_list0.append(next_state[0][0])
-        #     next_state_list1.append(next_state[1][0])
+        #     state_list.append(state[0])
+        #     next_state_list.append(next_state[0])
 
-        # qs_list = self.model.predict([np.array(state_list0), np.array(state_list1)])
-        # qs_list_next = self.target_model.predict([np.array(next_state_list0), np.array(next_state_list1)])
-
+        # qs_list = self.model.predict(np.array(state_list))
+        # qs_next_list = self.target_model.predict(np.array(next_state_list))
+        
+        # # print(f"qs. {qs_list}")
         # for index,(state, action, reward, next_state, done) in enumerate(minibatch):
         #     new_q = reward
         #     if not done:
-        #         new_q = reward + self.gamma * np.max(qs_list_next[index])
-
+        #         new_q = reward + self.gamma * np.max(qs_next_list[index])
+ 
         #     # update Q value for givefn state
-        #     print(f"qs list prev:{qs_list[index][action]}")
+        #     # target = self.model.predict(state)
         #     qs_list[index][action] = new_q
-        #     print(f"qs list after:{qs_list[index][action]}")
 
-        # self.history = self.model.fit([np.array(state_list0), np.array(state_list1)], np.array(qs_list), batch_size=self.batch_size)
+        #     # X.append(state[0])
+        #     # y.append(target[0])
+        # # print(f"statelist [0] size: {state_list[0].shape}, qs: {qs_list}")
+        # print("****************************************************************")
+        # self.history = self.model.fit(np.array(state_list), np.array(qs_list), self.batch_size)
+        # print("****************************************************************")
+
+        state_list0 = []
+        state_list1 = []
+        next_state_list0 = []
+        next_state_list1 = []
+                
+        for index,(state, action, reward, next_state, done) in enumerate(minibatch):
+            state_list0.append(state[0][0])
+            state_list1.append(state[1][0])
+            next_state_list0.append(next_state[0][0])
+            next_state_list1.append(next_state[1][0])
+
+        qs_list = self.model.predict([np.array(state_list0), np.array(state_list1)])
+        qs_list_next = self.target_model.predict([np.array(next_state_list0), np.array(next_state_list1)])
+
+        for index,(state, action, reward, next_state, done) in enumerate(minibatch):
+            new_q = reward
+            if not done:
+                new_q = reward + self.gamma * np.max(qs_list_next[index])
+
+            # update Q value for givefn state
+            qs_list[index][action] = new_q
+
+        self.history = self.model.fit([np.array(state_list0), np.array(state_list1)], np.array(qs_list), self.batch_size)
         self.histories.append(self.history.history['loss'][0])
                 
         if self.target_update_counter > self.update_target_every:
@@ -335,8 +331,8 @@ class RL():
         self.feedback = Feedback()
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
         print(f'Goal reached count: {self.latest_feedback()["goal_reached_count"]}')
-        self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
-        self.draw_loss(self.latest_feedback()["histories"])
+        # self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
+        # self.draw_loss(self.latest_feedback()["histories"])
 
         epsilon = self.latest_feedback()["epsilon"]
         print(f'epsilon: {epsilon}')
@@ -390,12 +386,12 @@ class RL():
 
         for e in range(self.n_episodes):
             state = self.env.reset()
-            state = np.reshape(state, [1, self.state_size()])
-            # scan_states = state[5:]
-            # other_states = state[:5]
-            # state1 = np.reshape(scan_states, [1, len(scan_states,)])
-            # state2 = np.reshape(other_states, [1, len(other_states,)])
-            # state = [state1, state2]
+            # state = np.reshape(state, [1, self.state_size()])
+            scan_states = state[3:]
+            other_states = state[:3]
+            state1 = np.reshape(scan_states, [1, len(scan_states,)])
+            state2 = np.reshape(other_states, [1, len(other_states,)])
+            state = [state1, state2]
 
             cumulated_reward = 0.0
 
@@ -406,14 +402,14 @@ class RL():
                 next_state, reward, done, _ = self.env.step(action)
                 cumulated_reward+= reward
 
-                # next_scan_states = next_state[5:]
-                # next_other_states = next_state[:5]
-                # next_state1 = np.reshape(next_scan_states, [1, len(next_scan_states,)])
-                # next_state2 = np.reshape(next_other_states, [1, len(next_other_states,)])
+                next_scan_states = next_state[3:]
+                next_other_states = next_state[:3]
+                next_state1 = np.reshape(next_scan_states, [1, len(next_scan_states,)])
+                next_state2 = np.reshape(next_other_states, [1, len(next_other_states,)])
 
-                # next_state = [next_state1, next_state2]
+                next_state = [next_state1, next_state2]
 
-                next_state = np.reshape(next_state, [1, self.state_size()])
+                # next_state = np.reshape(next_state, [1, self.state_size()])
                 self.agent.remember(state, action, reward, next_state, done)
                 self.agent.replay()
 

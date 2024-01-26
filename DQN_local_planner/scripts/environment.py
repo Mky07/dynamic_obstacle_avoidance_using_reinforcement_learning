@@ -42,10 +42,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.scan_padding = 25
         n_scan_states = self.scan_ranges + self.scan_padding
 
-        max_range = 30 #m
-        max_dist = 1 # m
-        self.look_ahead_dist = 1.0 #m
-        self.closed_obstacle_dist = 0.2
+        self.max_range = 30 #m
+        max_dist = 3 # m
+        self.look_ahead_dist = 2.0 #m
+        self.closed_obstacle_dist = 0.3
         
         # Limits
         self.goal_th = 0.3
@@ -56,12 +56,12 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.max_vx = 1.0
         self.max_wz = 0.4
         # self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz, 6, 9)
-        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz,4, 5)
+        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz,4, 7)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
         # state spaces
-        self.scan_preprocessing =ScanPreProcessing(n_scan_states,max_range, self.scan_padding)
+        self.scan_preprocessing =ScanPreProcessing(n_scan_states,self.max_range, self.scan_padding)
         self.robot_preprocessing = RobotPreProcessing(self.look_ahead_dist, max_dist)
 
         s1_l = np.full(1, 0)
@@ -69,19 +69,19 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         s4_l = np.full(1, 0)
         # s5_l = np.full(1, 0)
         # s6_l = np.full(1, 0)
-        # s3_l = np.full(n_scan_states, 0.0)
+        s3_l = np.full(n_scan_states, 0.0)
 
         s1_h = np.full(1, 1)
         s2_h = np.full(1, 1)
         s4_h = np.full(1, 1)
         # s5_h = np.full(1, 1)
         # s6_h = np.full(1, 1)
-        # s3_h = np.full(n_scan_states, 1)
+        s3_h = np.full(n_scan_states, 1)
         
-        # high = np.concatenate((s1_h, s2_h, s4_h,s5_h,s6_h, s3_h))
-        # low = np.concatenate((s1_l, s2_l, s4_l,s5_l,s6_l, s3_l))
-        high = np.concatenate((s1_h, s2_h, s4_h))
-        low = np.concatenate((s1_l, s2_l, s4_l))
+        high = np.concatenate((s1_h, s2_h, s4_h, s3_h))
+        low = np.concatenate((s1_l, s2_l, s4_l, s3_l))
+        # high = np.concatenate((s1_h, s2_h, s4_h))
+        # low = np.concatenate((s1_l, s2_l, s4_l))
 
         self.observation_space = spaces.Box(low, high)
         print("observation spaces: {}".format(self.observation_space))
@@ -196,9 +196,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         wz = self.robot_preprocessing.min_max_normalize(wz, -self.max_wz, self.max_wz)
 
         # disable scan state [max_range, max_range ...]
-        scan_state= [1]*len(scan_state)
+        # scan_state= [1]*len(scan_state)
         
-        self.observations = [min_dist, theta, dist_diff] #, vx, wz] #+ scan_state
+        self.observations = [min_dist, theta, dist_diff] + scan_state #, vx, wz] #+ scan_state
 
         print("observations: {}".format(self.observations))
         return self.observations
@@ -207,11 +207,12 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self._episode_done = False
 
         # collision detected
-        # if min(observations[5:])<= self.closed_obstacle_dist:
-        #     print("min scan done")
-        #     self.is_collision_detected = True
-        #     self._episode_done = True
-        #     return self._episode_done
+        cod = self.scan_preprocessing.normalize(self.closed_obstacle_dist, 0.0, self.max_range)
+        if min(observations[3:])<= cod:
+            print("min scan done")
+            self.is_collision_detected = True
+            self._episode_done = True
+            return self._episode_done
 
         # goal has reached        
         dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
@@ -263,18 +264,12 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
                 r3 = 1.5/dist # reward range: [1.5, 4.5]
         reward+= r3
 
-        # r3=0.0
-        # if dist<self.look_ahead_dist:
-        #     if dist!=0:
-        #         r3 = 1.5/dist # reward range: [1.5, 4.5]
-        # reward+= r3
-
         # reward+= observations[3] # Hız arttıkça ödül ver.
 
         if self.is_goal_reached:
             reward+= 5000
         if self.is_collision_detected:
-            reward-= 1000
+            reward-= 700
         if self.is_dist_exceed:
             reward-= 1000
         if self.is_angle_exceed:
@@ -317,7 +312,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
             start = PoseStamped()
             start.header.frame_id = "map"
-            start.pose.position = Point(0.0, -11.0, 0.0)  
+            start.pose.position = Point(0.0, 0.0, 0.0)  
             # start.pose = self.odom.pose.pose  
             # start.pose.position = Point(np.random.uniform(-2, 2.0), np.random.uniform(-12.0, -8.0), 0.0)
             start.pose.orientation.w = 1.0
@@ -338,6 +333,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def create_random_goal(self):
         goal = PoseStamped()
         # goal.pose.position = Point(8.0, -11.0, 0.0)  
-        goal.pose.position = Point(np.random.uniform(5.0, 10.0), np.random.uniform(-15.0, -5.0), 0.0)  
+        goal.pose.position = Point(np.random.uniform(14.0, 21.0), np.random.uniform(-12.0, 12.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

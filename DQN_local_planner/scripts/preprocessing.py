@@ -89,6 +89,10 @@ class ScanPreProcessing():
         normalized_data = [(x - min_val) / (max_val - min_val) for x in val]
         return normalized_data
 
+    def normalize(self, val, min_val, max_val):
+        normalized_data = (val - min_val) / (max_val - min_val)
+        return normalized_data
+
     def get_states(self, scan:LaserScan):
         extended_scan = self.padding(scan)
         self.fill_scan_info(extended_scan)

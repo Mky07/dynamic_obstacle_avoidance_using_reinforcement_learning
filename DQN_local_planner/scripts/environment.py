@@ -55,7 +55,8 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # action spaces
         self.max_vx = 1.0
         self.max_wz = 0.4
-        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz, 6, 9)
+        # self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz, 6, 9)
+        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz,4, 5)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
@@ -336,7 +337,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        # goal.pose.position = Point(4.0, -11.0, 0.0)  
+        # goal.pose.position = Point(8.0, -11.0, 0.0)  
         goal.pose.position = Point(np.random.uniform(5.0, 10.0), np.random.uniform(-15.0, -5.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

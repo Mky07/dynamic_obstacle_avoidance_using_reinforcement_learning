@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb13.pkl"
+        self.filename = "tb14.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -188,8 +188,8 @@ class NNModel():
     def predict(self, state):
         return self.model.predict(state)
 
-    def fit(self, X, y):
-        return self.model.fit(X, y, epochs=1, verbose=0, callbacks=ClearMemory())
+    def fit(self, X, y, batch_size=32):
+        return self.model.fit(X, y, batch_size=batch_size, shuffle=False, epochs=1, callbacks=ClearMemory())
 
 class DQNAgent():
     def __init__(self, state_size, action_size, epsilon, memory):
@@ -208,12 +208,12 @@ class DQNAgent():
         self.target_update_counter = 0
 
         # other parameters
-        self.batch_size = 32
+        self.batch_size = 64
         self.max_str = '00000'
         self.histories = []
         self.is_model_fit = False
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb13/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb14/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -242,25 +242,33 @@ class DQNAgent():
 
         minibatch = random.sample(self.memory, self.batch_size)
 
-        # X = []
-        # y = []
+        state_list = []
+        next_state_list = []
+        for index,(state, action, reward, next_state, done) in enumerate(minibatch):
+            state_list.append(state[0])
+            next_state_list.append(next_state[0])
 
+        qs_list = self.model.predict(np.array(state_list))
+        qs_next_list = self.target_model.predict(np.array(next_state_list))
+        
+        # print(f"qs. {qs_list}")
         for index,(state, action, reward, next_state, done) in enumerate(minibatch):
             new_q = reward
             if not done:
-                new_q = reward + self.gamma * np.max(self.target_model.predict(next_state)[0])
+                new_q = reward + self.gamma * np.max(qs_next_list[index])
  
             # update Q value for givefn state
-            target = self.model.predict(state)
-            target[0][action] = new_q
+            # target = self.model.predict(state)
+            qs_list[index][action] = new_q
 
             # X.append(state[0])
             # y.append(target[0])
-        
-            self.history = self.model.fit(state, target)
-
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        # print(f"statelist [0] size: {state_list[0].shape}, qs: {qs_list}")
+        print("****************************************************************")
+        self.history = self.model.fit(np.array(state_list), np.array(qs_list), self.batch_size)
+        print("****************************************************************")
+        # if self.epsilon > self.epsilon_min:
+        #     self.epsilon *= self.epsilon_decay
 
         # state_list0 = []
         # state_list1 = []
@@ -360,7 +368,7 @@ class RL():
     def draw_cumulative_rewards(self, data):
         plt.xlabel("Episode")
         plt.ylabel("Cumulative Reward")
-        plt.plot(moving_average(data, 50))
+        plt.plot(moving_average(data, 100))
         plt.show()
 
     def draw_loss(self, data):
@@ -368,7 +376,7 @@ class RL():
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.plot(moving_average(data, 1000))
+        plt.plot(moving_average(data, 5000))
         plt.show()
 
     def learning_phase(self):
@@ -414,7 +422,10 @@ class RL():
 
                 if done:
                     self.agent.target_update_counter += 1
-                    
+            
+                    if self.agent.epsilon > self.agent.epsilon_min and self.agent.is_model_fit:
+                        self.agent.epsilon *= self.agent.epsilon_decay
+
                     if self.env.is_goal_reached:
                         self.goal_reached_count+=1
                     if self.env.is_dist_exceed:

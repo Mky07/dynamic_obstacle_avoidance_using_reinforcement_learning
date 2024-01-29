@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb15.pkl"
+        self.filename = "tb16.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -139,9 +139,9 @@ class NNModel():
         x = Model(inputs=scan_inputs, outputs=x)
 
         # the second branch opreates on the second input
-        y = Dense(5, activation="relu")(other_inputs)
+        y = Dense(3, activation="relu")(other_inputs)
         y = Dense(16, activation="relu")(y)
-        y = Dense(5, activation="relu")(y)
+        y = Dense(3, activation="relu")(y)
         # y = Dense(64, activation="relu")(y)
         # y = Dense(128, activation="relu")(y)
         # y = Dense(64, activation="relu")(y)
@@ -197,7 +197,7 @@ class DQNAgent():
         self.action_size = action_size
                 
         # Q-Learning parameters
-        self.gamma = 0.95
+        self.gamma = 0.95 
         self.epsilon_decay = 0.99
         self.epsilon_min = 0.05
         self.min_replay_memory = 1_000
@@ -213,7 +213,7 @@ class DQNAgent():
         self.histories = []
         self.is_model_fit = False
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb15/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb16/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -331,8 +331,8 @@ class RL():
         self.feedback = Feedback()
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
         print(f'Goal reached count: {self.latest_feedback()["goal_reached_count"]}')
-        # self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
-        # self.draw_loss(self.latest_feedback()["histories"])
+        self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
+        self.draw_loss(self.latest_feedback()["histories"])
 
         epsilon = self.latest_feedback()["epsilon"]
         print(f'epsilon: {epsilon}')
@@ -398,7 +398,7 @@ class RL():
             for time in range(self.n_steps):
                 # env.render()
                 action = self.agent.act(state)
-                print(f"action: {action}")
+                # print(f"action: {action}")
                 next_state, reward, done, _ = self.env.step(action)
                 cumulated_reward+= reward
 

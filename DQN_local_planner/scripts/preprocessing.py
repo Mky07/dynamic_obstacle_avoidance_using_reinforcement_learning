@@ -8,7 +8,7 @@ from tf.transformations import euler_from_quaternion
 from math import sqrt, atan2
 
 
-class ScanPreProcessing():
+class ScanPreProcessing(): 
     def __init__(self, sample_size = 400, max_range = 20, padding_size=50):
         self.sample_size = sample_size
         self.max_range = max_range
@@ -97,10 +97,10 @@ class ScanPreProcessing():
         extended_scan = self.padding(scan)
         self.fill_scan_info(extended_scan)
         samples = self.downsample(extended_scan)
-        samples = self.extended_max_filter(samples)
+        # samples = self.extended_max_filter(samples)
         # samples = self.max_filter(samples)
-        samples = self.round_filter(samples)
         samples = self.min_max_arr_normalize(samples, 0.0, self.max_range)
+        # samples = self.round_filter(samples)
         return samples
 
 

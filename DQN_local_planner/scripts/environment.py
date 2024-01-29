@@ -37,13 +37,22 @@ register(
 
 class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
-        self.nsteps = 300
-        self.scan_ranges = 360
-        self.scan_padding = 25
-        n_scan_states = self.scan_ranges + self.scan_padding
+        # check subs and pubs
+        self.odom = self._check_odom_ready()
+        self.scan = self._check_laser_scan_ready()
+        
+        print(f"scan range :{len(self.scan.ranges)}")
+        # rospy.wait_for_service("/gazebo/set_model_state")
 
-        self.max_range = 30 #m
-        max_dist = 3 # m
+
+        self.nsteps = 300
+        # self.scan_ranges = 360
+        self.scan_padding = 25
+        # n_scan_states = self.scan_ranges + self.scan_padding
+        n_scan_states = len(self.scan.ranges)
+
+        self.max_range = 3 #m
+        max_dist = 2 # m
         self.look_ahead_dist = 2.0 #m
         self.closed_obstacle_dist = 0.3
         
@@ -53,10 +62,9 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         # self.angle_th = 2.4434609528 # 90 deg
 
         # action spaces
-        self.max_vx = 1.0
+        self.max_vx = 0.5
         self.max_wz = 0.4
-        # self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz, 6, 9)
-        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz,4, 7)
+        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz,6, 9)
         number_actions = len(self.action_spaces_value)
         self.action_space = spaces.Discrete(number_actions)
         
@@ -87,13 +95,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         print("observation spaces: {}".format(self.observation_space))
         # state spaces end
 
-        # check subs and pubs
-        self.odom = self._check_odom_ready()
-        self.scan = self._check_laser_scan_ready()
-        
-        print(f"scan range :{len(self.scan.ranges)}")
-        # rospy.wait_for_service("/gazebo/set_model_state")
-
         self._global_path_pub = rospy.Publisher("/mky_global_path", Path)
 
         super(LocalPlannerWorld, self).__init__()
@@ -113,7 +114,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         :return:
         """
         # This is necessary to give the laser sensors to refresh in the new reseted position.
-        time.sleep(1.5)
+        time.sleep(2.0)
 
         # For Info Purposes
         self.cumulated_reward = 0.0
@@ -134,8 +135,19 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
         while len(self.global_plan.poses) == 0:
             self.goal = self.create_random_goal()
-
             self.global_plan = self.get_global_path(self.goal)
+
+        ## move_base kısmında hata var
+        # self.odom = self.get_odom()
+        # min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
+        # print(f"WTF1: {theta}")
+        # while (theta<=0.4 or theta >=0.6): 
+        #     print("WTF2")
+        #     self.move_base(0.0, 0.1)            
+        #     self.odom = self.get_odom()
+        #     min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
+        # print("WTF3")
+        # self.move_base(0.0, 0.0)            
 
         # self.goal = PoseStamped()
         # self.goal.pose.position.x = 0.0
@@ -185,20 +197,15 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.odom = self.get_odom()
         self.scan = self.get_laser_scan()
         
-        scan_state = self.scan_preprocessing.get_states(self.scan)
+        # scan_state = self.scan_preprocessing.get_states(self.scan)
+        scan_ranges = self.scan_preprocessing.max_filter(self.scan.ranges)
+        scan_state = self.scan_preprocessing.min_max_arr_normalize(scan_ranges, 0.0, self.max_range)
         min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
-
-        vx = self.odom.twist.twist.linear.x
-        # normalize vx. Robot geri hızlarda gidebiliyorsa 0.0 yerine -self.max yaz.
-        vx = self.robot_preprocessing.min_max_normalize(vx,0.0, self.max_vx)
-
-        wz = self.odom.twist.twist.angular.z
-        wz = self.robot_preprocessing.min_max_normalize(wz, -self.max_wz, self.max_wz)
 
         # disable scan state [max_range, max_range ...]
         # scan_state= [1]*len(scan_state)
         
-        self.observations = [min_dist, theta, dist_diff] + scan_state #, vx, wz] #+ scan_state
+        self.observations = [min_dist, theta, dist_diff] + scan_state
 
         print("observations: {}".format(self.observations))
         return self.observations
@@ -221,10 +228,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             print("goal has reached")
             self.is_goal_reached = True
             self._episode_done = True
-            return self._episode_done
+            return self._episode_done 
 
         # when it's too far from global plan
-        if observations[0] > self.dist_th:
+        if observations[0] >1:
             print("too far from global plan")
             self.is_dist_exceed = True
             self._episode_done = True
@@ -282,7 +289,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.cumulated_reward += reward
         self.cumulated_steps += 1
         
-        print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2} r3:{r3}')
+        # print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2} r3:{r3}')
         return reward
 
     def set_model_state(self, model_name, min_x, max_x, min_y, max_y):
@@ -312,7 +319,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
             start = PoseStamped()
             start.header.frame_id = "map"
-            start.pose.position = Point(0.0, 0.0, 0.0)  
+            start.pose.position = Point(0.0, 0.0, 0.0)
             # start.pose = self.odom.pose.pose  
             # start.pose.position = Point(np.random.uniform(-2, 2.0), np.random.uniform(-12.0, -8.0), 0.0)
             start.pose.orientation.w = 1.0
@@ -332,7 +339,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        # goal.pose.position = Point(8.0, -11.0, 0.0)  
-        goal.pose.position = Point(np.random.uniform(14.0, 21.0), np.random.uniform(-12.0, 12.0), 0.0)  
+        goal.pose.position = Point(4.0, 0, 0.0)  
+        # goal.pose.position = Point(np.random.uniform(5.0, 10.0), np.random.uniform(-15.0, -5.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

@@ -34,3 +34,18 @@
 # TEB ve DWA için gerçek robot sonuçlarını ekle.
 # Sonuçlar. Çalışmamızı, deneysel sonuçları, discussionı özetle. Future work e dair  bir şeyler yaz.
 # Modeldeki durum uzayı daraltılacak. ön-10m yan ve arka 2m.
+
+
+###############################################
+# 1. adım
+# L,Theta, uzaklık için CNN ile eğitmek. aksiyon: 4-5
+# Scan = max
+
+# 2.adım
+# 3m düşürülecek. 4-5 . 20 aksiyon. aksiyon:6 ,9 ->  max: 0.5 w: 0.4
+
+# 3. adım
+# ddgp ve td3 algoritmalarını test et.
+
+# 4. adım
+# continous action uzayı ile test edilecek. 2 output olacak. 1. linear 2. angular tahmini

@@ -44,7 +44,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         print(f"scan range :{len(self.scan.ranges)}")
         # rospy.wait_for_service("/gazebo/set_model_state")
 
-
         self.nsteps = 300
         # self.scan_ranges = 360
         self.scan_padding = 25
@@ -231,7 +230,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             return self._episode_done 
 
         # when it's too far from global plan
-        if observations[0] >1:
+        if observations[0] >=1:
             print("too far from global plan")
             self.is_dist_exceed = True
             self._episode_done = True
@@ -254,7 +253,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
 
     def _compute_reward(self, observations, done):
         reward = 0
-
+        
         ## look ahead dist
         r1 = (exp(-observations[0]+1.8)-1.406) # reward range: [0.82-4.644]
         reward+= r1
@@ -271,25 +270,23 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
                 r3 = 1.5/dist # reward range: [1.5, 4.5]
         reward+= r3
 
-        # reward+= observations[3] # Hız arttıkça ödül ver.
-
         if self.is_goal_reached:
-            reward+= 5000
+            reward+= 10000
         if self.is_collision_detected:
-            reward-= 700
+            reward-= 4000
         if self.is_dist_exceed:
-            reward-= 1000
+            reward-= 4000
         if self.is_angle_exceed:
-            reward-= 500
+            reward-= 4000
 
         # time factor
         if not done:
-            reward-= 0.1
+            reward-= 12
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
         
-        # print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2} r3:{r3}')
+        print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2} r3:{r3}')
         return reward
 
     def set_model_state(self, model_name, min_x, max_x, min_y, max_y):
@@ -339,7 +336,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        goal.pose.position = Point(4.0, 0, 0.0)  
-        # goal.pose.position = Point(np.random.uniform(5.0, 10.0), np.random.uniform(-15.0, -5.0), 0.0)  
+        # goal.pose.position = Point(4.0, 0, 0.0)  
+        goal.pose.position = Point(np.random.uniform(1.0, 4.0), np.random.uniform(-4.0, 4.0), 0.0)  
         print(f"goal position:{goal}")
         return goal

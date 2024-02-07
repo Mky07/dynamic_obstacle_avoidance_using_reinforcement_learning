@@ -49,3 +49,6 @@
 
 # 4. adım
 # continous action uzayı ile test edilecek. 2 output olacak. 1. linear 2. angular tahmini
+
+
+# loss niye artmış. onun açıklamasını yaazalım

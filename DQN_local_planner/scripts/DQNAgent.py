@@ -29,7 +29,7 @@ class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb16.pkl"
+        self.filename = "tb17.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
@@ -213,7 +213,7 @@ class DQNAgent():
         self.histories = []
         self.is_model_fit = False
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb16/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb17/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -362,18 +362,22 @@ class RL():
         print(f"state size:{self.state_size()} - action size:{self.action_size()}")
 
     def draw_cumulative_rewards(self, data):
-        plt.xlabel("Episode")
-        plt.ylabel("Cumulative Reward")
-        plt.plot(moving_average(data, 100))
-        plt.show()
+        size = 800
+        if len(data)>size:
+            plt.xlabel("Episode")
+            plt.ylabel("Cumulative Reward")
+            plt.plot(moving_average(data, size))
+            plt.show()
 
     def draw_loss(self, data):
         # data = [x for x in data if x <= 5_000]
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.plot(moving_average(data, 5000))
-        plt.show()
+        size = 35000
+        if len(data)>size:
+            plt.title('model loss')
+            plt.ylabel('loss')
+            plt.xlabel('epoch')
+            plt.plot(moving_average(data, size))
+            plt.show()
 
     def learning_phase(self):
         done = False

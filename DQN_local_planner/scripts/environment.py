@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-Yapilacaklar
-* [+] scan verisinin ilk değerlerini en sona ekle
-* [+] robot açisinin limitini kaldir
-* [+] aci arttikca negatif ödül ver.
-* [+] aksiyon uzaya (0,0) ve (0, theta) açilarini ekle
-"""
-
 import rospy
 import time
 import numpy as np
@@ -37,6 +29,7 @@ register(
 
 class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def __init__(self):
+
         # check subs and pubs
         self.odom = self._check_odom_ready()
         self.scan = self._check_laser_scan_ready()
@@ -44,57 +37,43 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         print(f"scan range :{len(self.scan.ranges)}")
         # rospy.wait_for_service("/gazebo/set_model_state")
 
-        self.nsteps = 300
-        # self.scan_ranges = 360
-        self.scan_padding = 25
-        # n_scan_states = self.scan_ranges + self.scan_padding
+        self.nsteps = 1000
         n_scan_states = len(self.scan.ranges)
 
         self.max_range = 3 #m
-        max_dist = 2 # m
-        self.look_ahead_dist = 2.0 #m
+        self.look_ahead_dist = 1.5 #m
         self.closed_obstacle_dist = 0.3
         
         # Limits
         self.goal_th = 0.3
-        self.dist_th = max_dist
-        # self.angle_th = 2.4434609528 # 90 deg
+        self.dist_th = 1.5 # m
 
         # action spaces
-        self.max_vx = 0.5
+        self.max_vx = 1.0
         self.max_wz = 0.4
-        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz,6, 9)
+        self.action_spaces_value = create_action_spaces(self.max_vx, self.max_wz,4, 5)
+
         number_actions = len(self.action_spaces_value)
+
         self.action_space = spaces.Discrete(number_actions)
         
-        # state spaces
-        self.scan_preprocessing =ScanPreProcessing(n_scan_states,self.max_range, self.scan_padding)
-        self.robot_preprocessing = RobotPreProcessing(self.look_ahead_dist, max_dist)
+        self.robot_preprocessing = RobotPreProcessing(self.look_ahead_dist, self.dist_th)
 
-        s1_l = np.full(1, 0)
-        s2_l = np.full(1, 0)
-        s4_l = np.full(1, 0)
-        # s5_l = np.full(1, 0)
-        # s6_l = np.full(1, 0)
-        s3_l = np.full(n_scan_states, 0.0)
+        min_dist_l = np.full(1, 0)
+        theta_l = np.full(1, -2*pi)
+        dist_diff_l = np.full(1, 0)
+        scan_l = np.full(n_scan_states, 0.0)
 
-        s1_h = np.full(1, 1)
-        s2_h = np.full(1, 1)
-        s4_h = np.full(1, 1)
-        # s5_h = np.full(1, 1)
-        # s6_h = np.full(1, 1)
-        s3_h = np.full(n_scan_states, 1)
+        min_dist_h = np.full(1, self.dist_th)
+        theta_h = np.full(1, 2*pi)
+        dist_diff_h = np.full(1, self.look_ahead_dist)
+        scan_h = np.full(n_scan_states, self.max_range)
         
-        high = np.concatenate((s1_h, s2_h, s4_h, s3_h))
-        low = np.concatenate((s1_l, s2_l, s4_l, s3_l))
-        # high = np.concatenate((s1_h, s2_h, s4_h))
-        # low = np.concatenate((s1_l, s2_l, s4_l))
+        high = np.concatenate((min_dist_h, theta_h, dist_diff_h, scan_h))
+        low = np.concatenate((min_dist_l, theta_l, dist_diff_l, scan_l))
 
         self.observation_space = spaces.Box(low, high)
         print("observation spaces: {}".format(self.observation_space))
-        # state spaces end
-
-        self._global_path_pub = rospy.Publisher("/mky_global_path", Path)
 
         super(LocalPlannerWorld, self).__init__()
 
@@ -113,7 +92,7 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         :return:
         """
         # This is necessary to give the laser sensors to refresh in the new reseted position.
-        time.sleep(2.0)
+        time.sleep(2)
 
         # For Info Purposes
         self.cumulated_reward = 0.0
@@ -136,30 +115,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
             self.goal = self.create_random_goal()
             self.global_plan = self.get_global_path(self.goal)
 
-        ## move_base kısmında hata var
-        # self.odom = self.get_odom()
-        # min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
-        # print(f"WTF1: {theta}")
-        # while (theta<=0.4 or theta >=0.6): 
-        #     print("WTF2")
-        #     self.move_base(0.0, 0.1)            
-        #     self.odom = self.get_odom()
-        #     min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
-        # print("WTF3")
-        # self.move_base(0.0, 0.0)            
-
-        # self.goal = PoseStamped()
-        # self.goal.pose.position.x = 0.0
-        # self.goal.pose.position.y = -1.0
-        # self.goal.pose.orientation.w = 1.0
-        # self.goal.header.frame_id = "map"
-
-        # self.global_plan = self.get_global_path(self.goal)
-
-        # Only for Visualization
-        # goal_x, goal_y =self.global_plan.poses[-1].pose.position.x, self.global_plan.poses[-1].pose.position.y
-        # self.set_model_state("Goal_Point",goal_x, goal_x, goal_y, goal_y)        
-
     def _set_action(self, action):
         """
         This set action will Set the linear and angular speed of the turtlebot2
@@ -175,10 +130,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         print(f'actions x:{_linear_speed} z:{_angular_speed}')
         self.move_base(_linear_speed, _angular_speed)
 
-        # We tell TurtleBot2 the linear and angular speed to set to execute
-        # 0.2 sn uyuyor
-        # self.move_base(_linear_speed, _angular_speed, epsilon=0.05, update_rate=10)
-        rospy.loginfo("end action")
         rospy.logdebug("END Set Action ==>"+str(action))
 
     def _get_obs(self):
@@ -196,15 +147,16 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self.odom = self.get_odom()
         self.scan = self.get_laser_scan()
         
-        # scan_state = self.scan_preprocessing.get_states(self.scan)
-        scan_ranges = self.scan_preprocessing.max_filter(self.scan.ranges)
-        scan_state = self.scan_preprocessing.min_max_arr_normalize(scan_ranges, 0.0, self.max_range)
-        min_dist, theta, dist_diff = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
+        # scan state
+        scan_state = [min(x, self.max_range) for x in self.scan.ranges]
 
-        # disable scan state [max_range, max_range ...]
-        # scan_state= [1]*len(scan_state)
+        # other state
+        dist_to_goal = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
+        dist_to_goal = min(self.look_ahead_dist, dist_to_goal)
+
+        min_dist, theta, _ = self.robot_preprocessing.get_states(self.global_plan, self.odom.pose.pose)
         
-        self.observations = [min_dist, theta, dist_diff] + scan_state
+        self.observations = [min_dist, theta, dist_to_goal] + scan_state
 
         print("observations: {}".format(self.observations))
         return self.observations
@@ -213,31 +165,31 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         self._episode_done = False
 
         # collision detected
-        cod = self.scan_preprocessing.normalize(self.closed_obstacle_dist, 0.0, self.max_range)
-        if min(observations[3:])<= cod:
+        if min(observations[3:])<= self.closed_obstacle_dist:
             print("min scan done")
             self.is_collision_detected = True
             self._episode_done = True
             return self._episode_done
 
         # goal has reached        
-        dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
-        
-        if dist<= self.goal_th:
+        dist_to_goal = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
+
+        if dist_to_goal<= self.goal_th:
             print("goal has reached")
             self.is_goal_reached = True
             self._episode_done = True
             return self._episode_done 
 
         # when it's too far from global plan
-        if observations[0] >=1:
+        if observations[0] >=self.dist_th:
             print("too far from global plan")
             self.is_dist_exceed = True
             self._episode_done = True
             return self._episode_done
 
         # robot acısı çok fazla ise işlemi sonlandır.
-        if 0.9<=observations[1] or observations[1]<=0.1:
+        rad150 = (5/6)*pi
+        if rad150<=observations[1] or observations[1]<=-rad150:
             print("Angle has exceeded")
             self.is_angle_exceed = True
             self._episode_done = True
@@ -254,56 +206,41 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     def _compute_reward(self, observations, done):
         reward = 0
         
-        ## look ahead dist
-        r1 = (exp(-observations[0]+1.8)-1.406) # reward range: [0.82-4.644]
+        ## rotaya uzaklık
+        # r1 = (exp(-observations[0]+1.8)-1.406) # reward range: [0.82-4.644]
+        r1 = 10*(-0.5*observations[0]+0.1) # [0, 2] -> [1, -9]
         reward+= r1
 
         ## angle
-        r2 = (-3*(observations[1]-0.5)**2+0.75) # reward range: [0.0, 0.75]
+        # r2 = (-3*(observations[1]-0.5)**2+0.75) # reward range: [0.0, 0.75]
+        r2 = -observations[1]**2 + 0.27 # [-2.61, +2.61] -> [0.27, -6.6]
         reward+= r2
         
-        dist = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
+        dist_to_goal = sqrt((self.goal.pose.position.x-self.odom.pose.pose.position.x)**2 + (self.goal.pose.position.y-self.odom.pose.pose.position.y)**2)
 
         r3=0.0
-        if observations[2]<1:
-            if dist!=0:
-                r3 = 1.5/dist # reward range: [1.5, 4.5]
+        if observations[2]<self.look_ahead_dist and observations[2]!=0:
+            r3 = 2*self.look_ahead_dist/observations[2] # reward range: [2, 13.33]
         reward+= r3
 
         if self.is_goal_reached:
-            reward+= 10000
+            reward+= 10_000
         if self.is_collision_detected:
-            reward-= 4000
+            reward-= 4_000
         if self.is_dist_exceed:
-            reward-= 4000
+            reward-= 4_000
         if self.is_angle_exceed:
-            reward-= 4000
+            reward-= 4_000
 
         # time factor
         if not done:
-            reward-= 12
+            reward-= 0.01 # almost disable
 
         self.cumulated_reward += reward
         self.cumulated_steps += 1
         
         print(f'cumulated reward: {self.cumulated_reward}, reward: {reward} r1:{r1} r2:{r2} r3:{r3}')
         return reward
-
-    def set_model_state(self, model_name, min_x, max_x, min_y, max_y):
-
-        res = SetModelStateResponse()
-        while not res.success:
-            # random pose for obstacle
-            try:
-                set_model_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
-                req = SetModelStateRequest()
-                req.model_state.model_name = model_name
-                req.model_state.pose.position.x = np.random.uniform(min_x, max_x)
-                req.model_state.pose.position.y = np.random.uniform(min_y, max_y)
-                res = set_model_state(req)
-                rospy.logwarn(res)
-            except rospy.ServiceException as e:
-                print("Service call failed: %s"%e)
 
     def get_global_path(self, goal:PoseStamped):
         """
@@ -336,7 +273,10 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
     
     def create_random_goal(self):
         goal = PoseStamped()
-        # goal.pose.position = Point(4.0, 0, 0.0)  
-        goal.pose.position = Point(np.random.uniform(1.0, 4.0), np.random.uniform(-4.0, 4.0), 0.0)  
+        # goal.pose.position = Point(8.0, 0.0, 0.0)  # 1314 adım eğitildi 
+        # goal.pose.position = Point(13.0, 0.0, 0.0)  # * adım eğitildi c3 1. adım 
+        goal.pose.position = Point(13.0, 0.0, 0.0)  # * adım eğitildi c3 1. adım 
+        # goal.pose.position = Point(np.random.uniform(1.0, 4.0), np.random.uniform(-4.0, 4.0), 0.0) # 755 adım eğitildi.
+        # goal.pose.position = Point(np.random.uniform(7.0, 9.0), np.random.uniform(-8.0, 8.0), 0.0) # 755 adım eğitildi.
         print(f"goal position:{goal}")
         return goal

@@ -108,6 +108,7 @@ class RobotPreProcessing():
     def __init__(self, look_ahead_dist, max_dist):
         self.look_ahead_dist = look_ahead_dist
         self.max_dist = max_dist
+
     def round_filter(self, data):
         return round(data, 1)
 
@@ -165,9 +166,9 @@ class RobotPreProcessing():
         closed_point_idx, _, min_dist = self.closed_path_pose_info(path, robot_pose)
         lap, dist_diff = self.look_ahead_point(path, closed_point_idx)
         theta = self.theta_wrt_look_ahead_point(lap, robot_pose)
-        theta = self.round_filter(theta)
+        # theta = self.round_filter(theta)
 
-        norm_dist = self.min_max_normalize(self.round_filter(min_dist),0, self.max_dist)
-        norm_theta = self.min_max_normalize(self.round_filter(theta), -math.pi, math.pi)
-        dist_diff = self.min_max_normalize(self.round_filter(dist_diff), 0.0, self.look_ahead_dist)
-        return [norm_dist, norm_theta, dist_diff]
+        # norm_dist = self.min_max_normalize(self.round_filter(min_dist),0, self.max_dist)
+        # norm_theta = self.min_max_normalize(self.round_filter(theta), -math.pi, math.pi)
+        # dist_diff = self.min_max_normalize(self.round_filter(dist_diff), 0.0, self.look_ahead_dist)
+        return [min_dist, theta, dist_diff]

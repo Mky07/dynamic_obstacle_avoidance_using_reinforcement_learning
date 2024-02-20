@@ -161,7 +161,7 @@ class Buffer:
             )
             critic_value = critic_model([state_batch, action_batch], training=True)
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
-
+            tf.print(f"crit loss:{critic_loss}")
         critic_grad = tape.gradient(critic_loss, critic_model.trainable_variables)
         critic_optimizer.apply_gradients(
             zip(critic_grad, critic_model.trainable_variables)

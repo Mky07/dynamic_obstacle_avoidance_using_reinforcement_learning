@@ -126,7 +126,6 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         based on the action number given.
         :param action: The action integer that set s what movement to do next.
         """
-        print(f"act: {action}")
         rospy.logdebug("Start Set Action ==>"+str(action))
         _linear_speed = action[0]
         _angular_speed = action[1]
@@ -228,13 +227,13 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         reward+= r3
 
         if self.is_goal_reached:
-            reward+= 200
+            reward+= 400
         if self.is_collision_detected:
             reward-= 50
         if self.is_dist_exceed:
-            reward-= 50
+            reward-= 200
         if self.is_angle_exceed:
-            reward-= 50
+            reward-= 200
 
         # time factor
         if not done:

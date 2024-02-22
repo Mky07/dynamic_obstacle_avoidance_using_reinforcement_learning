@@ -266,9 +266,6 @@ base_weight_folder = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obsta
 actor_folder = base_weight_folder + "actor/"
 critic_folder = base_weight_folder + "critic/"
 
-# if not os.path.exists(base_weight_folder):
-#         os.makedirs(base_weight_folder)
-
 if not os.path.exists(actor_folder):
         os.makedirs(actor_folder)
 

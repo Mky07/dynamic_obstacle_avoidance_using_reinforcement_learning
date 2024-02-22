@@ -286,6 +286,7 @@ class DDPGAgent:
                 self.update_target(self.target_actor.variables, self.actor_model.variables, self.tau)
                 self.update_target(self.target_critic.variables, self.critic_model.variables, self.tau)
                 prev_state = state
+                print(f"episode: {ep}/{num_episodes}, score: {step},buffer_counter:{self.config['buffer_counter']}")
                 print(f"cumulative rewards: {self.config['cumulative_rewards'][-200:]}")
                 self.print_done_counts()
                 # End this episode when `done` is True
@@ -329,6 +330,7 @@ class DDPGAgent:
         weight_filename = "weights_"+"{:05d}".format(self.config["ep"]) + ".hdf5"
         self.actor_model.save_weights(self.parent_dir + "actor/" + weight_filename)
         self.critic_model.save_weights(self.parent_dir + "critic/" + weight_filename)
+
 
     def _save_config(self):
         filename = "config.pkl"
@@ -384,12 +386,12 @@ if __name__ == '__main__':
     env_name = "LocalPlannerWorld-v4"
 
     ######################### CONFIG #########################################
-    parent_folder = "robot2"
+    parent_folder = "robot_test"
     critic_lr = 0.001
     actor_lr = 0.0001
-    batch_size = 128
+    batch_size = 64
     buffer_capacity = 50_000
-    
+
     ##########################################################################
     current_file_location = os.path.abspath(__file__)
     main_dir = os.path.dirname(current_file_location)

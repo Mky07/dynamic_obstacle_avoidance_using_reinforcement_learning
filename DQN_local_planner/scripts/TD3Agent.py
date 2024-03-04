@@ -67,7 +67,7 @@ class DoneReason(Enum):
     ANGLE_EXEEDED = "ANGLE_EXEEDED"
     N_STEPS_DONE = "N_STEPS_DONE"
 
-class DDPGAgent:
+class TD3Agent:
     def __init__(self, env_name, parent_dir, buffer_capacity=50_000, batch_size=64, critic_lr=0.001, actor_lr = 0.0001):
         self.parent_dir = parent_dir
 
@@ -83,9 +83,10 @@ class DDPGAgent:
         print("Min Value of Action ->  {}".format(self.lower_bound))
         ########################################################
         self.buffer_capacity = buffer_capacity
-
+        
         # load config
         self.config=self.load_config()
+
         self.config['done_reasons'] = self.config['done_reasons'][:3060]
         self.config['cumulative_rewards'] = self.config['cumulative_rewards'][:3060]
         size = int((3060* len(self.config['critic_loss'])) / len(self.config['done_reasons']))
@@ -120,6 +121,8 @@ class DDPGAgent:
         self.batch_size = batch_size
         self.gamma = 0.99
         self.tau = 0.005
+        self.update_frequency = 20
+        self.update_counter = 0
 
         self.actor_model = self.get_actor()
         self.target_actor = self.get_actor()
@@ -128,6 +131,10 @@ class DDPGAgent:
         self.critic_model = self.get_critic()
         self.target_critic = self.get_critic()
         self.critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
+
+        self.critic_model2 = self.get_critic()
+        self.target_critic2 = self.get_critic()
+        self.critic_optimizer2 = tf.keras.optimizers.Adam(critic_lr)
 
         self.load_weights()
 
@@ -186,17 +193,16 @@ class DDPGAgent:
     def policy(self, state):
         sampled_actions = tf.squeeze(self.actor_model(state))
         # print(f"sampled action:{sampled_actions}")
-        noise = self.ou_noise()
-        # print(f'sample action:{noise}')
-        sampled_actions = sampled_actions.numpy() + noise
+        return self.clipped_noisy_action(sampled_actions)
 
-        # We make sure action is within bounds
-        legal_action = np.clip(sampled_actions, self.lower_bound, self.upper_bound)
+    def clipped_noisy_action(self, action):
+        action = action.numpy() + self.ou_noise()
+        legal_action = np.clip(action, self.lower_bound, self.upper_bound)
         return [np.squeeze(legal_action)][0]
 
     # This update target parameters slowly
     # Based on rate `tau`, which is much less than one.
-    @tf.function
+    # @tf.function
     def update_target(self, target_weights, weights, tau):
         for (a, b) in zip(target_weights, weights):
             a.assign(b * tau + a * (1 - tau))
@@ -217,7 +223,8 @@ class DDPGAgent:
         # state_batch, action_batch, reward_batch, next_state_batch = self.sample()
         critic_loss, actor_loss=self.update(state_batch, action_batch, reward_batch, next_state_batch)
         self.config["critic_loss"].append(critic_loss.numpy())
-        self.config["actor_loss"].append(actor_loss.numpy())
+        if actor_loss != None:
+            self.config["actor_loss"].append(actor_loss.numpy())
         # print(f"cl: {critic_loss.numpy()} al:{actor_loss.numpy()}")
 
     # Takes (s,a,r,s') obervation tuple as input
@@ -240,37 +247,49 @@ class DDPGAgent:
             plt.plot(moving_average(data, ma))
             plt.show()
 
-    @tf.function
+    # @tf.function
     def update(
         self, state_batch, action_batch, reward_batch, next_state_batch,
     ):
-        # Training and updating Actor & Critic networks.
-        # See Pseudo Code.
-        with tf.GradientTape() as tape:
+        self.update_counter+=1
+        with tf.GradientTape(persistent=True) as tape:
             target_actions = self.target_actor(next_state_batch, training=True)
-            y = reward_batch + self.gamma * self.target_critic(
-                [next_state_batch, target_actions], training=True
-            )
-            critic_value = self.critic_model([state_batch, action_batch], training=True)
-            critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
+            target_actions = self.clipped_noisy_action(target_actions) # TD3 Özelliği. Add noise to target action. Then clip it. 
+            q1 = self.target_critic([next_state_batch, target_actions], training=True)
+            q2 = self.target_critic2([next_state_batch, target_actions], training=True)
+            
+            q = np.concatenate((q1.numpy(), q2.numpy()), axis=1)
+            q = np.min(q, axis=1)
+            q = np.reshape(q, (len(q), 1)) # TD3 Özelliği
 
-        critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
-        self.critic_optimizer.apply_gradients(
-            zip(critic_grad, self.critic_model.trainable_variables)
-        )
+            y = reward_batch + self.gamma * q
+            critic_value1 = self.critic_model([state_batch, action_batch], training=True)
+            critic_value2 = self.critic_model2([state_batch, action_batch], training=True)
+            
+            critic_loss1 = tf.math.reduce_mean(tf.math.square(y - critic_value1))
+            critic_loss2 = tf.math.reduce_mean(tf.math.square(y - critic_value2))
 
-        with tf.GradientTape() as tape:
-            actions = self.actor_model(state_batch, training=True)
-            critic_value = self.critic_model([state_batch, actions], training=True)
-            # Used `-value` as we want to maximize the value given
-            # by the critic for our actions
-            actor_loss = -tf.math.reduce_mean(critic_value)
+        critic_grad = tape.gradient(critic_loss1, self.critic_model.trainable_variables)
+        critic_grad2 = tape.gradient(critic_loss2, self.critic_model2.trainable_variables)
 
-        actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables)
-        self.actor_optimizer.apply_gradients(
-            zip(actor_grad, self.actor_model.trainable_variables)
-        )
-        return critic_loss, actor_loss
+        del tape
+
+        self.critic_optimizer.apply_gradients(zip(critic_grad, self.critic_model.trainable_variables))
+        self.critic_optimizer2.apply_gradients(zip(critic_grad2, self.critic_model2.trainable_variables))
+
+        actor_loss = None
+        if self.update_counter % self.update_frequency == 0: # TD3 Özelliği
+            with tf.GradientTape() as tape:
+                actions = self.actor_model(state_batch, training=True)
+                critic_value = self.critic_model([state_batch, actions], training=True)
+                # Used `-value` as we want to maximize the value given
+                # by the critic for our actions
+                actor_loss = -tf.math.reduce_mean(critic_value)
+
+            actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables)
+            self.actor_optimizer.apply_gradients(zip(actor_grad, self.actor_model.trainable_variables))
+
+        return critic_loss1, actor_loss
 
     def train(self, num_episodes=10_000):
         self.config["num_episodes"] = num_episodes
@@ -393,11 +412,11 @@ class DDPGAgent:
         print(f"GOAL_REACHED:{goal_reached_count}, COLLISION_DETECTED:{collision_detected_count}, DIST_EXCEEDED:{dist_exceeded_count}, ANGLE_EXEEDED:{angle_exceeded_count}, N_STEPS_DONE:{nsteps_done_count}")
 
 if __name__ == '__main__':
-    rospy.init_node('DDPG_Agent', anonymous=True, log_level=rospy.WARN)
+    rospy.init_node('TD3_Agent', anonymous=True, log_level=rospy.WARN)
     env_name = "LocalPlannerWorld-v4"
 
     ######################### CONFIG #########################################
-    parent_folder = "robot2"
+    parent_folder = "robot_td3" # 4177 adım eğitildi.
     critic_lr = 0.001
     actor_lr = 0.0001
     batch_size = 64
@@ -410,7 +429,7 @@ if __name__ == '__main__':
     parent_dir = main_dir+"/"+parent_folder+"/"
     ##########################################################################
 
-    agent = DDPGAgent(env_name, parent_dir,buffer_capacity=buffer_capacity, batch_size=batch_size, critic_lr=critic_lr, actor_lr=actor_lr)
+    agent = TD3Agent(env_name, parent_dir,buffer_capacity=buffer_capacity, batch_size=batch_size, critic_lr=critic_lr, actor_lr=actor_lr)
     agent.train(10_000)
     agent.draw(agent.config["cumulative_rewards"], 40)
     agent.draw(agent.config["critic_loss"],100,"Step" ,"Critic Loss")

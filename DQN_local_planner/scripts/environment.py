@@ -224,13 +224,13 @@ class LocalPlannerWorld(turtlebot2_env.TurtleBot2Env):
         reward+= r3
 
         if self.is_goal_reached:
-            reward+= 10_000
+            reward+= 400
         if self.is_collision_detected:
-            reward-= 4_000
+            reward-= 50
         if self.is_dist_exceed:
-            reward-= 4_000
+            reward-= 200
         if self.is_angle_exceed:
-            reward-= 4_000
+            reward-= 200
 
         # time factor
         if not done:

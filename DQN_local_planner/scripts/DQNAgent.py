@@ -18,29 +18,36 @@ from keras import backend as k
 import environment
 import rospy
 import rospkg
-from utils import moving_average, min_max_normalize
+from utils import moving_average, min_max_normalize, tt
 
 import pickle
 import matplotlib.pyplot as plt
 
 import gc
+from enum import Enum
+
+class DoneReason(Enum):
+    GOAL_REACHED = "GOAL_REACHED"
+    COLLISION_DETECTED = "COLLISION_DETECTED"
+    DIST_EXCEEDED = "DIST_EXCEEDED"
+    ANGLE_EXEEDED = "ANGLE_EXEEDED"
+    N_STEPS_DONE = "N_STEPS_DONE"
 
 class Feedback():
     def __init__(self):
         
         self.parent_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/models/"
-        self.filename = "tb19.pkl"
+        self.filename = "robot_dqn.pkl"
         self.file_path = self.parent_dir + self.filename
                 
         # assign_params if not created
         self.params={
             "cumulated_rewards": [],
             "epsilon": 0.99,
-            "goal_reached_count": 0,
+            "done_reasons": [],
             'histories': [],
             'memory': deque(maxlen=1),
-            'memory_len': 1000
-        }
+            'memory_len': 1000}
             
         self.load()
 
@@ -54,9 +61,9 @@ class Feedback():
                 pass
             else:
                 self.params["cumulated_rewards"]+= params["cumulated_rewards"]
+                self.params["done_reasons"]+= params["done_reasons"]
                 self.params["histories"]+= params["histories"]
                 self.params["epsilon"] = params["epsilon"]
-                self.params['goal_reached_count']+= params['goal_reached_count']
                 self.params['memory'] = deque(params['memory'], maxlen=params['memory_len'])
             pickle.dump(self.params, f)
 
@@ -92,75 +99,12 @@ class NNModel():
 
     def fully_connected_model(self):
         model = Sequential()
-        
-        # input layer
         model.add(Dense(64, input_dim = self.state_size, activation='relu'))
-        
-        #hidden layer 1
         model.add(Dense(128, activation='relu'))
-
-        #hidden layer 2
-        model.add(Dense(32, activation='relu'))
-        
-        #output layer
+        model.add(Dense(32, activation='relu'))        
         model.add(Dense(self.action_size, activation='linear'))
 
         model.compile(loss="mse", optimizer=Adam(lr = self.learning_rate))
-
-        return model
-
-    def alexnet_cnn_model(self):
-        #https://www.analyticsvidhya.com/blog/2021/03/introduction-to-the-architecture-of-alexnet/
-        # define two sets of inputs
-        other_inputs_size = 3
-        scan_input_size = self.state_size - other_inputs_size
-        scan_inputs = Input(shape=(scan_input_size,1))
-        other_inputs = Input(shape=(other_inputs_size,))
-        
-        # the first branch operates on the first input
-        x = Conv1D(filters=32, kernel_size=11, strides=4, padding= "same", activation='relu')(scan_inputs)
-        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
-        x = Conv1D(filters=64, kernel_size=5, strides=1, padding= "same", activation='relu')(x)
-        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
-        x = Conv1D(filters=32, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
-        x = Conv1D(filters=32, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
-        x = Conv1D(filters=16, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
-        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
-        x = Conv1D(filters=4, kernel_size=3, strides=1, padding= "same", activation='relu')(x)
-        x = MaxPooling1D(pool_size=(3,), strides=2, padding="same")(x)
-        x = Dropout(0.2)(x)
-        x = Flatten()(x)
-        x = Model(inputs=scan_inputs, outputs=x)
-
-        # the second branch opreates on the second input
-        y = Dense(3, activation="relu")(other_inputs)
-        y = Dense(16, activation="relu")(y)
-        y = Dense(3, activation="relu")(y)
-        # y = Dense(64, activation="relu")(y)
-        # y = Dense(128, activation="relu")(y)
-        # y = Dense(64, activation="relu")(y)
-        y = Model(inputs=other_inputs, outputs=y)
-        
-        # combine the output of the two branches
-        combined = concatenate([x.output, y.output])
-
-        # apply a FC layer and then a regression prediction on the
-        
-        # combined outputs
-        z = Dense(32, activation="relu")(combined)
-        z = Dense(32, activation="relu")(combined)
-        # z = Dropout(0.5)(z)
-        # z = Dense(64, activation="relu")(z)
-        #https://ai.stackexchange.com/questions/34589/using-softmax-non-linear-vs-linear-activation-function-in-deep-reinforceme#:~:text=The%20normal%20use%20case%20for,are%20estimates%20for%20some%20measurement.
-        z = Dense(self.action_size, activation="linear")(z)
-        # z = Dense(self.action_size, activation="softmax")(z)
-        
-        # our model will accept the inputs of the two branches and
-        # then output a single value
-        model = Model(inputs=[x.input, y.input], outputs=z)
-
-        # compile model categorical_hinge
-        model.compile(loss="mse", optimizer=Adam(learning_rate= self.learning_rate))
 
         return model
 
@@ -207,7 +151,7 @@ class DQNAgent():
         self.histories = []
         self.is_model_fit = False
 
-        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/tb19/" 
+        self.output_dir = "/home/mky/rl_ws/src/openai_examples_projects/dynamic_obstacle_avoidance_using_reinforcement_learning/DQN_local_planner/robot_dqn/" 
 
         if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
@@ -245,46 +189,17 @@ class DQNAgent():
         qs_list = self.model.predict(np.array(state_list))
         qs_next_list = self.target_model.predict(np.array(next_state_list))
         
-        # print(f"qs. {qs_list}")
         for index,(state, action, reward, next_state, done) in enumerate(minibatch):
             new_q = reward
             if not done:
                 new_q = reward + self.gamma * np.max(qs_next_list[index])
  
-            # update Q value for givefn state
-            # target = self.model.predict(state)
             qs_list[index][action] = new_q
 
-            # X.append(state[0])
-            # y.append(target[0])
-        # print(f"statelist [0] size: {state_list[0].shape}, qs: {qs_list}")
         print("****************************************************************")
         self.history = self.model.fit(np.array(state_list), np.array(qs_list), self.batch_size)
         print("****************************************************************")
 
-        # state_list0 = []
-        # state_list1 = []
-        # next_state_list0 = []
-        # next_state_list1 = []
-                
-        # for index,(state, action, reward, next_state, done) in enumerate(minibatch):
-        #     state_list0.append(state[0][0])
-        #     state_list1.append(state[1][0])
-        #     next_state_list0.append(next_state[0][0])
-        #     next_state_list1.append(next_state[1][0])
-
-        # qs_list = self.model.predict([np.array(state_list0), np.array(state_list1)])
-        # qs_list_next = self.target_model.predict([np.array(next_state_list0), np.array(next_state_list1)])
-
-        # for index,(state, action, reward, next_state, done) in enumerate(minibatch):
-        #     new_q = reward
-        #     if not done:
-        #         new_q = reward + self.gamma * np.max(qs_list_next[index])
-
-        #     # update Q value for givefn state
-        #     qs_list[index][action] = new_q
-
-        # self.history = self.model.fit([np.array(state_list0), np.array(state_list1)], np.array(qs_list), self.batch_size)
         self.histories.append(self.history.history['loss'][0])
                 
         if self.target_update_counter > self.update_target_every:
@@ -324,16 +239,31 @@ class RL():
 
         self.feedback = Feedback()
         print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"]}')
-        print(f'Goal reached count: {self.latest_feedback()["goal_reached_count"]}')
+        self.print_done_counts()
         self.draw_cumulative_rewards(self.latest_feedback()["cumulated_rewards"])
         self.draw_loss(self.latest_feedback()["histories"])
-
+        
+        done_reasons = self.latest_feedback()["done_reasons"]
+        self.draw(tt(done_reasons, 'GOAL_REACHED'), 500, 'Episode', 'Goal Reached')
+        self.draw(tt(done_reasons, 'COLLISION_DETECTED'), 500, 'Episode', 'Collision Detected')
+        self.draw(tt(done_reasons, 'DIST_EXCEEDED'), 500, 'Episode', 'Distance Exceeded')
+        self.draw(tt(done_reasons, 'ANGLE_EXEEDED'), 500, 'Episode', 'Angle Exceeded')
+ 
         epsilon = self.latest_feedback()["epsilon"]
         print(f'epsilon: {epsilon}')
         
         self.agent = DQNAgent(self.state_size(), self.action_size(), epsilon, self.latest_feedback()["memory"])
         self.agent.load_latest_model()
-        
+
+
+
+    def draw(self, data, ma=100, xlabel="Episode", ylabel="Cumulative Reward"):
+        if len(data)>ma:
+            plt.xlabel(xlabel)
+            plt.ylabel(ylabel)
+            plt.plot(moving_average(data, ma))
+            plt.show()
+
     def action_size(self):
         """
         action space:[move forward, turn left, turn right]
@@ -356,7 +286,7 @@ class RL():
         print(f"state size:{self.state_size()} - action size:{self.action_size()}")
 
     def draw_cumulative_rewards(self, data):
-        size = 800
+        size = 500
         if len(data)>size:
             plt.xlabel("Episode")
             plt.ylabel("Cumulative Reward")
@@ -365,7 +295,7 @@ class RL():
 
     def draw_loss(self, data):
         # data = [x for x in data if x <= 5_000]
-        size = 35000
+        size = 5000
         if len(data)>size:
             plt.title('model loss')
             plt.ylabel('loss')
@@ -373,46 +303,41 @@ class RL():
             plt.plot(moving_average(data, size))
             plt.show()
 
+    def print_done_counts(self):
+        goal_reached_count = self.latest_feedback()["done_reasons"].count(DoneReason.GOAL_REACHED.value)
+        collision_detected_count = self.latest_feedback()["done_reasons"].count(DoneReason.COLLISION_DETECTED.value)
+        dist_exceeded_count = self.latest_feedback()["done_reasons"].count(DoneReason.DIST_EXCEEDED.value)
+        angle_exceeded_count = self.latest_feedback()["done_reasons"].count(DoneReason.ANGLE_EXEEDED.value)
+        nsteps_done_count = self.latest_feedback()["done_reasons"].count(DoneReason.N_STEPS_DONE.value)
+        
+        print(f"GOAL_REACHED:{goal_reached_count}, COLLISION_DETECTED:{collision_detected_count}, DIST_EXCEEDED:{dist_exceeded_count}, ANGLE_EXEEDED:{angle_exceeded_count}, N_STEPS_DONE:{nsteps_done_count}")
+
+
     def learning_phase(self):
         done = False
 
         cumulated_rewards = []
-        self.goal_reached_count = 0
-        self.is_dist_exceed_count = 0
-        self.is_angle_exceed_count = 0
-        self.cumulative_goal_reached_count = 0
+        done_reasons = []
 
         for e in range(self.n_episodes):
             state = self.env.reset()
             state = np.reshape(state, [1, self.state_size()])
-            # scan_states = state[3:]
-            # other_states = state[:3]
-            # state1 = np.reshape(scan_states, [1, len(scan_states,)])
-            # state2 = np.reshape(other_states, [1, len(other_states,)])
-            # state = [state1, state2]
 
             cumulated_reward = 0.0
 
             for time in range(self.n_steps):
-                # env.render()
                 action = self.agent.act(state)
                 # print(f"action: {action}")
                 next_state, reward, done, _ = self.env.step(action)
                 cumulated_reward+= reward
-
-                # next_scan_states = next_state[3:]
-                # next_other_states = next_state[:3]
-                # next_state1 = np.reshape(next_scan_states, [1, len(next_scan_states,)])
-                # next_state2 = np.reshape(next_other_states, [1, len(next_other_states,)])
-
-                # next_state = [next_state1, next_state2]
 
                 next_state = np.reshape(next_state, [1, self.state_size()])
                 self.agent.remember(state, action, reward, next_state, done)
                 self.agent.replay()
 
                 state = next_state
-                print(f'step: {time}/{self.n_steps} episode: {e}/{self.n_episodes} target_update_counter: {self.agent.target_update_counter} goal_reached:{self.cumulative_goal_reached_count} memory size: {len(self.agent.memory)}')
+                print(f'step: {time}/{self.n_steps} episode: {e}/{self.n_episodes} target_update_counter: {self.agent.target_update_counter} memory size: {len(self.agent.memory)}')
+                self.print_done_counts()
 
                 if done:
                     self.agent.target_update_counter += 1
@@ -421,17 +346,23 @@ class RL():
                         self.agent.epsilon *= self.agent.epsilon_decay
 
                     if self.env.is_goal_reached:
-                        self.goal_reached_count+=1
-                    if self.env.is_dist_exceed:
-                        self.is_dist_exceed_count+=1
-                    if self.env.is_angle_exceed:
-                        self.is_angle_exceed_count+=1
+                        done_reasons.append(DoneReason.GOAL_REACHED.value)
+                    elif self.env.is_dist_exceed:
+                        done_reasons.append(DoneReason.DIST_EXCEEDED.value)
+                    elif self.env.is_angle_exceed:
+                        done_reasons.append(DoneReason.ANGLE_EXEEDED.value)
+                    elif self.env.is_collision_detected:
+                        done_reasons.append(DoneReason.COLLISION_DETECTED.value)
+                    elif self.env.nsteps_done:
+                        done_reasons.append(DoneReason.N_STEPS_DONE.value)
+                    else:
+                        print("Unexpected Done Reason.")
 
                     print(f'cumulated rewards: {self.latest_feedback()["cumulated_rewards"][-200:]}')
                     # print(f'histores rewards: {self.latest_feedback()["histories"][-200:]}')
-
+                    self.print_done_counts()
                     rospy.logwarn("********************************************")
-                    print("episode: {}/{}, score: {}, e:{:2} goal reached: {} angle_exceed:{} dist_exceed:{}".format(e, self.n_episodes, time, self.agent.epsilon, self.cumulative_goal_reached_count, self.is_angle_exceed_count, self.is_dist_exceed_count))
+                    print("episode: {}/{}, score: {}, e:{:2}".format(e, self.n_episodes, time, self.agent.epsilon))
                     rospy.logwarn("********************************************")
                     break
             
@@ -442,18 +373,17 @@ class RL():
             # if self.agent.target_update_counter == 0:
                 self.agent.save(self.agent.output_dir + "weights_"+"{:05d}".format(int(self.agent.max_str)+e) + ".hdf5")
 
-                self.cumulative_goal_reached_count+= self.goal_reached_count
                 params={
                     "cumulated_rewards": cumulated_rewards,
                     "epsilon": self.agent.epsilon,
-                    "goal_reached_count": self.goal_reached_count,
                     'histories': self.agent.histories,
                     'memory': self.agent.memory,
-                    'memory_len': self.agent.max_replay_memory
+                    'memory_len': self.agent.max_replay_memory,
+                    'done_reasons': done_reasons
                 }
                 self.feedback.save(params)
                 cumulated_rewards = []
-                self.goal_reached_count = 0
+                done_reasons = []
                 self.agent.histories = []
         self.env.close()
 
